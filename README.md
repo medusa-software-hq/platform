@@ -1,1 +1,1 @@
-# platform
+# Medusa Platform

@@ -1,0 +1,44 @@
+name: Check infra
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  TERRAFORM_VERSION: 1.15
+
+  TF_INPUT: false
+  TF_CLI_ARGS: -no-color
+  NO_COLOR: 1
+
+jobs:
+  check-terraform:
+    name: Check Terraform module
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: ~> ${{ env.TERRAFORM_VERSION }}
+
+      - uses: terraform-linters/setup-tflint@v6.3.0
+
+      - name: Run `terraform fmt`
+        working-directory: infra
+        run: terraform fmt -check -recursive
+
+      - name: Run `tflint`
+        working-directory: infra
+        run: tflint --recursive
+
+      - name: Run `terraform validate`
+        working-directory: infra
+        run: |
+          terraform init -backend=false
+          terraform validate

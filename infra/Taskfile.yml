@@ -1,0 +1,12 @@
+version: '3'
+
+# noinspection YAMLSchemaValidation
+.terraformSources: &terraformSources
+  - '**/*.tf'
+
+tasks:
+  fixFormatting:
+    desc: Fix Terraform formatting
+    sources: *terraformSources
+    cmds:
+      - terraform fmt -recursive

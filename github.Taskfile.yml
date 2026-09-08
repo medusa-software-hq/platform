@@ -1,0 +1,13 @@
+version: '3'
+
+tasks:
+  fixLint:
+    desc: Fix lint issues in GitHub workflows
+    sources: '.github/workflows/*.yml'
+    cmds:
+      - github-ci lint --fix
+
+  upgradeActions:
+    desc: Upgrade GitHub workflow actions to the latest versions
+    cmds:
+      - github-ci upgrade

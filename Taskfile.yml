@@ -1,0 +1,17 @@
+version: '3'
+
+includes:
+  github:
+    taskfile: github.Taskfile.yml
+    dir: .
+
+  infra:
+    taskfile: infra/Taskfile.yml
+    dir: infra
+
+tasks:
+  desc: Apply all automatic fixes
+  fixAll:
+    deps:
+      - github:fixLint
+      - infra:fixFormatting
