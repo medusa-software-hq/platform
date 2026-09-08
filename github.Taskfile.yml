@@ -1,9 +1,13 @@
 version: '3'
 
+# noinspection YAMLSchemaValidation
+.workflowSources: &workflowSources
+  - '.github/workflows/*.yml'
+
 tasks:
   fixLint:
     desc: Fix lint issues in GitHub workflows
-    sources: '.github/workflows/*.yml'
+    sources: *workflowSources
     cmds:
       - github-ci lint --fix
 

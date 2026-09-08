@@ -10,8 +10,8 @@ includes:
     dir: infra
 
 tasks:
-  desc: Apply all automatic fixes
   fixAll:
+    desc: Apply all automatic fixes
     deps:
       - github:fixLint
       - infra:fixFormatting
