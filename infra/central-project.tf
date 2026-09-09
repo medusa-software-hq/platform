@@ -18,6 +18,7 @@ resource "google_project_service" "central" {
     "cloudresourcemanager.googleapis.com",
     "iam.googleapis.com",
     "iamcredentials.googleapis.com",
+    "secretmanager.googleapis.com",
     "serviceusage.googleapis.com",
     "storage.googleapis.com",
     "sts.googleapis.com",

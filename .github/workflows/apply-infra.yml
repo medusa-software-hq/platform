@@ -37,6 +37,13 @@ jobs:
           workload_identity_provider: ${{ vars.GCP_CICD_WI_PROVIDER }}
           service_account: ${{ vars.GCP_CICD_SA_EMAIL }}
 
+      - name: Read the Terraformer key
+        id: secrets
+        uses: google-github-actions/get-secretmanager-secrets@v3
+        with:
+          secrets: |-
+            pem:ms-root-cc216992/gh-platform-terraformer-app-pem
+
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v4
         with:
@@ -44,6 +51,8 @@ jobs:
 
       - name: Apply Terraform configuration
         working-directory: infra
+        env:
+          TF_VAR_gh_terraformer_app_pem: ${{ steps.secrets.outputs.pem }}
         run: |
           terraform init
           terraform apply -auto-approve

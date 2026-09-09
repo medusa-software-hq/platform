@@ -64,6 +64,16 @@ terraform {
   }
 }
 
+#region Variables
+
+variable "gh_terraformer_app_pem" {
+  description = "Terraformer GitHub App PEM key contents."
+  type        = string
+  sensitive   = true
+}
+
+#endregion
+
 #region Terraform providers
 
 provider "google" {
@@ -79,7 +89,7 @@ provider "github" {
     id = "4874543"
     # https://github.com/organizations/medusa-software-hq/settings/installations/160089048
     installation_id = "160089048"
-    pem_file        = data.google_secret_manager_secret_version_access.platform_terraformer_app_pem.secret_data
+    pem_file        = var.gh_terraformer_app_pem
   }
 }
 
@@ -95,9 +105,7 @@ data "google_billing_account" "gcp_billing_account" {
   display_name = "My Billing Account"
   open         = true
 
-  # Skip enumerating the account's projects. That listing needs
-  # `billing.resourceAssociations.list`, which is not in `roles/billing.user` — the
-  # only billing role this stack holds — and nothing here uses the result.
+  # Skip enumerating the account's projects (needs less permissions)
   lookup_projects = false
 }
 
@@ -105,12 +113,6 @@ data "google_billing_account" "gcp_billing_account" {
 data "google_active_folder" "platform" {
   display_name = "platform"
   parent       = data.google_organization.gcp_organization.name
-}
-
-# Terraformer GitHub App PEM key
-data "google_secret_manager_secret_version_access" "platform_terraformer_app_pem" {
-  project = local.gcp_root_project_id
-  secret  = "gh-platform-terraformer-app-pem"
 }
 
 #endregion

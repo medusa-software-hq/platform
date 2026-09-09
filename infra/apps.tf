@@ -120,7 +120,7 @@ resource "google_service_account_iam_member" "app_env_cicd_workload_identity" {
   member = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.central.name}/attribute.repository_environment/${local.gh_organization_name}/${github_repository.app[each.value.app].name}:${each.value.env}"
 }
 
-# Full ownership of its own project.
+# Grant the app's CI/CD service account full ownership of its own project.
 resource "google_project_iam_member" "app_env_cicd_owner" {
   for_each = local.app_envs
 
@@ -203,6 +203,7 @@ locals {
   ]...)
 }
 
+# Set the repo-scoped variables
 resource "github_actions_variable" "app" {
   for_each = local.app_variables
 
@@ -211,6 +212,7 @@ resource "github_actions_variable" "app" {
   value         = each.value.value
 }
 
+# Set the environment-scoped variables
 resource "github_actions_environment_variable" "app_env" {
   for_each = local.app_env_variables
 
