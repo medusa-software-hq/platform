@@ -1,4 +1,6 @@
+import * as pulumi from '@pulumi/pulumi';
 import { appEnvironments } from './app-environment.ts';
+import { appImages, githubPoolProvider } from './app-images.ts';
 import { centralProject } from './central.ts';
 import { appFolders, sharedFolder } from './folders.ts';
 import { billingAccount, organization } from './organization.ts';
@@ -26,3 +28,20 @@ export const appServiceAccountEmails = Object.fromEntries(
     appEnvironment.serviceAccount.email,
   ]),
 );
+
+//region Handed to app repositories, for pushing images
+
+export const imagePushProvider = githubPoolProvider.name;
+
+export const imageRegistries = Object.fromEntries(
+  Object.entries(appImages).map(([app, images]) => [
+    app,
+    pulumi.interpolate`${images.registry.location}-docker.pkg.dev/${centralProject.projectId}/${images.registry.repositoryId}`,
+  ]),
+);
+
+export const imagePushServiceAccountEmails = Object.fromEntries(
+  Object.entries(appImages).map(([app, images]) => [app, images.pushServiceAccount.email]),
+);
+
+//endregion

@@ -25,6 +25,7 @@ export const centralProject = new gcp.organizations.Project('central', {
 });
 
 export const centralServices = [
+  'artifactregistry.googleapis.com',
   'cloudresourcemanager.googleapis.com',
   'iam.googleapis.com',
   'iamcredentials.googleapis.com',
