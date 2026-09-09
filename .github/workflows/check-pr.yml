@@ -1,0 +1,12 @@
+name: Check PR
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check-gh-workflows:
+    name: GitHub workflows
+    uses: ./.github/workflows/check-gh-workflows.yml

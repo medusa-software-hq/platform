@@ -1,0 +1,8 @@
+linters:
+  default: all
+  disable:
+    - versions # Version linter enforces SHAs (we use tags)
+
+upgrade:
+  actions: {}
+  format: tag # Prefer tags over SHAs

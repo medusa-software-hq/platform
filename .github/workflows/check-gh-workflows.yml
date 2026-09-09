@@ -1,0 +1,26 @@
+name: Check GitHub workflows
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  NO_COLOR: 1
+
+jobs:
+  lint-workflows:
+    name: Lint workflows
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: Install github-ci
+        run: |
+          go install github.com/reugn/github-ci/cmd/github-ci@latest
+          echo "$HOME/go/bin" >> "$GITHUB_PATH"
+
+      - name: Run `github-ci lint`
+        run: github-ci lint

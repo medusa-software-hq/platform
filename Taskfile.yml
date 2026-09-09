@@ -1,0 +1,12 @@
+version: '3'
+
+includes:
+  github:
+    taskfile: github.Taskfile.yml
+    dir: .
+
+tasks:
+  fixAll:
+    desc: Apply all automatic fixes
+    deps:
+      - github:fixLint

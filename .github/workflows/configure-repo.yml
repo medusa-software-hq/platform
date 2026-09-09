@@ -1,0 +1,27 @@
+name: Configure repository
+
+on:
+  push:
+    branches: [main]
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  configure:
+    name: Configure
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      # Required checks are derived from this repository's own pull request
+      # workflows, so adding a check is one edit in check-pr.yml and nothing else.
+      - name: Configure the repository
+        uses: medusa-software-hq/utility-github-actions/configure-repo@v1
+        with:
+          app-id: ${{ vars.REPO_CONFIG_APP_ID }}
+          private-key: ${{ secrets.REPO_CONFIG_APP_KEY }}
