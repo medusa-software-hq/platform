@@ -28,22 +28,11 @@ const config = new pulumi.Config();
 const delegationFolder = config.require('delegationFolder');
 
 /**
- * Folders that predate this program, from the Terraform era. Adopting them keeps the
- * projects inside where they are; recreating the tree would strand them.
- *
- * Remove an entry once the first successful `up` has adopted it — Pulumi verifies the
- * identifier on every subsequent operation, so a stale entry is noise at best.
+ * Adoption identifiers for folders that predate this program go here, keyed by
+ * resource name, and are removed once an `up` has taken them. Empty means the tree is
+ * fully owned.
  */
-const ADOPT: Readonly<Record<string, string>> = {
-  shared: 'folders/485336689789',
-  environments: 'folders/806881350507',
-  production: 'folders/525971717005',
-  staging: 'folders/750288711492',
-  'production-apps': 'folders/347028805386',
-  'staging-apps': 'folders/974486982411',
-  'demo-production': 'folders/566356451684',
-  'demo-staging': 'folders/828221816233',
-};
+const ADOPT: Readonly<Record<string, string>> = {};
 
 const adopt = (name: string): pulumi.CustomResourceOptions => {
   const id = ADOPT[name];
