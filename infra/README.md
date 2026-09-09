@@ -34,5 +34,10 @@ The Deployments settings:
 pulumi deployment settings edit \
   --github-repo medusa-software-hq/platform \
   --branch main --folder infra \
-  --preview-prs --push-to-deploy
+  --preview-prs --push-to-deploy \
+  --pre-run-command "corepack enable"
 ```
+
+The pre-run command is load-bearing. The deployment runner ships Node but no `yarn`
+on PATH, and this project pins yarn 4 through corepack, so dependency installation
+fails without it.
