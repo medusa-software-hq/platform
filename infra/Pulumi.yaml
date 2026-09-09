@@ -2,7 +2,7 @@ name: medusa-platform
 runtime:
   name: nodejs
   options:
-    packagemanager: yarn
+    packagemanager: npm
 description: >-
   Organization-level infrastructure: the folder hierarchy, one project per app per
   environment, and the identities that let app repositories deploy into them.

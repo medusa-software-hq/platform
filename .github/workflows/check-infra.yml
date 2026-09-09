@@ -27,14 +27,14 @@ jobs:
           node-version-file: infra/.nvmrc
 
       - name: Install dependencies
-        run: corepack yarn install --immutable
+        run: npm ci
 
       - name: Run `oxfmt`
-        run: corepack yarn oxfmt --check "**/*.ts"
+        run: npx --no-install oxfmt --check "**/*.ts"
 
       - name: Run `oxlint`
         # `--type-aware` is where the rules that need the type checker live.
-        run: corepack yarn oxlint --type-aware
+        run: npx --no-install oxlint --type-aware
 
       - name: Run `tsc`
-        run: corepack yarn tsc --noEmit
+        run: npx --no-install tsc --noEmit

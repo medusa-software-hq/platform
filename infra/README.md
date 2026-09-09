@@ -38,6 +38,12 @@ pulumi deployment settings edit \
   --pre-run-command "corepack enable"
 ```
 
-The pre-run command is load-bearing. The deployment runner ships Node but no `yarn`
-on PATH, and this project pins yarn 4 through corepack, so dependency installation
-fails without it.
+## Why npm here
+
+Every other TypeScript package in the organization uses yarn 4 through corepack. This
+one uses npm, for one reason: the Pulumi Deployments runner ships Node without `yarn`
+on PATH, and it installs dependencies *before* running any pre-run command, so there
+is no point at which corepack can be enabled.
+
+The pre-run command below survives as a belt-and-braces measure. The `zygote` bootstrap
+stack keeps yarn, since it is applied by hand and never runs in a deployment.
