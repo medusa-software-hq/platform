@@ -1,6 +1,13 @@
 import { appFolders, sharedFolder } from './folders.ts';
 import { billingAccount, organization } from './organization.ts';
 
+export {
+  centralProjectNumber,
+  platformServiceAccountEmail,
+  workloadIdentityPoolId,
+  workloadIdentityProviderId,
+} from './pulumi-identity.ts';
+
 export const organizationId = organization.orgId;
 export const billingAccountId = billingAccount.id;
 

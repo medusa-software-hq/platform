@@ -16,4 +16,10 @@ export const organization = gcp.organizations.getOrganizationOutput({
 export const billingAccount = gcp.organizations.getBillingAccountOutput({
   displayName: 'My Billing Account',
   open: true,
+
+  // Enumerating the account's projects needs `billing.resourceAssociations.list`,
+  // which `roles/billing.user` does not carry — and nothing here reads the result.
+  // The alternative is `roles/billing.viewer`, some sixty permissions covering
+  // pricing, spending and carbon reporting, to obtain one that gets discarded.
+  lookupProjects: false,
 });
