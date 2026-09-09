@@ -18,25 +18,12 @@ The identity itself belongs to the bootstrap stack: the account, the trust that 
 Pulumi Cloud assume it, and the grants defining its reach are all owned there, so this
 stack cannot widen what it runs as.
 
-## Reproducing the wiring
+## Where the wiring lives
 
-Neither of these lives in a file, so they are recorded here.
-
-The ESC environment, from the definition in `esc/`:
-
-```
-pulumi env edit platform/gcp --file esc/gcp.yaml
-```
-
-The Deployments settings:
-
-```
-pulumi deployment settings edit \
-  --github-repo medusa-software-hq/platform \
-  --branch main --folder infra \
-  --preview-prs --push-to-deploy \
-  --pre-run-command "corepack enable"
-```
+Neither the ESC environment nor the Deployments settings are configured here. Both are
+resources in the `zygote` bootstrap stack, which also owns the identity they hand out
+— the layer above decides what this stack may do and how it gets to do it, and none of
+it sits in a web console where nobody can review it.
 
 ## Why npm here
 
