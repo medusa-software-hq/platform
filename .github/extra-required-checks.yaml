@@ -1,0 +1,7 @@
+# Required checks this repository does not produce itself, so nothing can derive them
+# from check-pr.yml. Everything reported by our own workflows is found automatically.
+#
+# The Pulumi preview is what turns the gate from "this compiles" into "this plans
+# cleanly against real infrastructure" — the static checks cannot tell you that a
+# change would delete the folder tree.
+- medusa-platform/main - preview deployment
