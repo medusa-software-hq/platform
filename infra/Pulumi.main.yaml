@@ -1,0 +1,6 @@
+config:
+  medusa-platform:delegationFolder: folders/523003355329
+  medusa-platform:pulumiOrganization: jakub-trzebiatowski-medusa-software
+  gcp:project: ms-root-cc216992
+environment:
+  - platform/gcp
