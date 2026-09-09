@@ -1,0 +1,20 @@
+{
+  "name": "medusa-platform-infra",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "dependencies": {
+    "@pulumi/gcp": "^9.0.0",
+    "@pulumi/pulumi": "^3.150.0"
+  },
+  "devDependencies": {
+    "@tsconfig/strictest": "^2.0.8",
+    "@types/node": "^25.0.0",
+    "oxfmt": "^0.65.0",
+    "oxlint": "^1.80.0",
+    "oxlint-tsgolint": "^7.0.2001",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  },
+  "packageManager": "yarn@4.14.1"
+}

@@ -1,0 +1,54 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+
+version: '3'
+
+tasks:
+  install:
+    desc: Install dependencies
+    sources:
+      - package.json
+      - yarn.lock
+    generates:
+      - node_modules/.yarn-state.yml
+    cmds:
+      # `--immutable` ensures a clean install based on the lockfile
+      - corepack yarn install --immutable
+
+  checkFormatting:
+    desc: Check package formatting
+    deps: [install]
+    cmds:
+      - corepack yarn oxfmt --check "**/*.ts"
+
+  fixFormatting:
+    desc: Fix package formatting
+    deps: [install]
+    cmds:
+      - corepack yarn oxfmt --write "**/*.ts"
+
+  lint:
+    desc: Lint the package
+    deps: [install]
+    cmds:
+      # `--type-aware` is where the rules that need the type checker live, and they are the ones
+      # that catch conditions which cannot be false.
+      - corepack yarn oxlint --type-aware
+
+  fixLint:
+    desc: Fix lint issues in the package
+    deps: [install]
+    cmds:
+      - corepack yarn oxlint --type-aware --fix
+
+  typecheck:
+    desc: Type check the package
+    deps: [install]
+    cmds:
+      - corepack yarn tsc --noEmit
+
+  preview:
+    desc: Preview changes against the current stack
+    deps: [install]
+    interactive: true
+    cmds:
+      - pulumi preview

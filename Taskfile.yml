@@ -5,8 +5,14 @@ includes:
     taskfile: github.Taskfile.yml
     dir: .
 
+  infra:
+    taskfile: infra/Taskfile.yml
+    dir: infra
+
 tasks:
   fixAll:
     desc: Apply all automatic fixes
     deps:
       - github:fixLint
+      - infra:fixFormatting
+      - infra:fixLint
