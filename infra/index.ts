@@ -1,5 +1,6 @@
 import * as pulumi from '@pulumi/pulumi';
 import { appEnvironments } from './app-environment.ts';
+import { appHostnames } from './app-hostname.ts';
 import { appImages, githubPoolProvider } from './app-images.ts';
 import { appRepositories } from './app-repository.ts';
 import { centralProject } from './central.ts';
@@ -49,4 +50,9 @@ export const imagePushServiceAccountEmails = Object.fromEntries(
 
 export const appRepositoryNames = Object.fromEntries(
   Object.entries(appRepositories).map(([app, repository]) => [app, repository.fullName]),
+);
+
+/** Where each app environment is served. */
+export const appHostnameUrls = Object.fromEntries(
+  Object.entries(appHostnames).map(([key, hostname]) => [key, `https://${hostname}`]),
 );
