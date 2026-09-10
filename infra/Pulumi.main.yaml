@@ -3,4 +3,4 @@ config:
   medusa-platform:pulumiOrganization: jakub-trzebiatowski-medusa-software
   gcp:project: ms-central-108271b9
 environment:
-  - platform/gcp
+  - platform/main
