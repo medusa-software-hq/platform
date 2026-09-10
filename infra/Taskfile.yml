@@ -51,4 +51,7 @@ tasks:
     deps: [install]
     interactive: true
     cmds:
-      - pulumi preview
+      # Read-only credentials, opened deliberately. They are deliberately absent from
+      # the environment the stack references: anything there arrives as Pulumi
+      # configuration, which overrides the credentials a deployment mints for itself.
+      - pulumi env run platform/reader -- pulumi preview
