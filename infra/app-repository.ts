@@ -17,6 +17,15 @@ import { githubOrganization } from './organization.ts';
 
 const config = new pulumi.Config();
 
+/**
+ * Authenticates as the GitHub App, never as an ambient token.
+ *
+ * The provider falls back to `GITHUB_TOKEN` when `token` is unset, and Pulumi
+ * Deployments puts a short-lived one in the runner because this stack has the GitHub
+ * integration enabled. That token would land in provider inputs and differ on every
+ * run, so every plan would carry a phantom change. Zygote blanks the variable in the
+ * environment it writes for this stack, which the provider reads as unset.
+ */
 export const githubProvider = new github.Provider('github', {
   owner: githubOrganization,
   appAuth: {
