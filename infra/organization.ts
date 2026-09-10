@@ -1,7 +1,7 @@
 import * as gcp from '@pulumi/gcp';
+import { organizationDomain } from './model.ts';
 
-/** The organization's Internet domain, and the name of its Cloud Identity account. */
-export const organizationDomain = 'medusa.software';
+export { organizationDomain };
 
 /** Where regional resources live unless something argues otherwise. */
 export const primaryLocation = 'europe-west1';

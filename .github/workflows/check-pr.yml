@@ -11,6 +11,10 @@ jobs:
     name: GitHub workflows
     uses: ./.github/workflows/check-gh-workflows.yml
 
+  check-deploy:
+    name: Deploy
+    uses: ./.github/workflows/check-deploy.yml
+
   check-infra:
     name: Infra
     uses: ./.github/workflows/check-infra.yml
