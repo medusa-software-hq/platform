@@ -1,0 +1,83 @@
+name: Deploy
+
+# Called by an app's repository, and by nothing else that can get anywhere.
+#
+# This file is what the Google Cloud provider's `job_workflow_ref` condition names, so
+# the identity that reads the Pulumi credential is issued to these steps at this ref
+# and to no others. A caller supplies no inputs and cannot substitute anything: which
+# app is deployed comes from the repository that called, as GitHub reports it, so
+# asking can only ever deploy the asker.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  NO_COLOR: 1
+
+# One sequence at a time, across every caller.
+#
+# The group is deliberately constant: keyed on the ref or the commit it would be no
+# lock at all, and this lock is what keeps "production deploys what staging just
+# served" true when two merges land close together. A third run replaces the one
+# waiting, which is right — the newest commit contains the one it replaced.
+#
+# Never cancelling in progress, because this job does not do the work. Cancelling it
+# would abandon a running deployment rather than stop it, and lose the only thing
+# watching how it ends.
+concurrency:
+  group: deploy-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: deploy
+
+    steps:
+      # This repository, not the caller's. The steps and the program are the thing
+      # being trusted with a credential, so they come from where they are reviewed.
+      - name: Checkout platform
+        uses: actions/checkout@v7.0.1
+        with:
+          repository: medusa-software-hq/platform
+          ref: main
+
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version-file: deploy/.nvmrc
+
+      # Federated, not stored. The assertion has to satisfy a condition naming this
+      # workflow file at this ref, so a token minted for anything else is refused.
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.DEPLOY_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Read the Pulumi token
+        id: token
+        uses: google-github-actions/get-secretmanager-secrets@v3.0.0
+        with:
+          secrets: |-
+            pulumi:${{ vars.DEPLOY_TOKEN_SECRET }}
+
+      # The remote automation API drives the Pulumi CLI rather than the REST API, so
+      # the binary has to be here even though none of the work happens here.
+      - name: Install Pulumi
+        uses: pulumi/actions@v7.0.0
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Deploy every environment, in order
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ steps.token.outputs.pulumi }}
+          PULUMI_ORGANIZATION: ${{ vars.PULUMI_ORGANIZATION }}
+        run: node src/main.ts

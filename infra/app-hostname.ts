@@ -1,6 +1,6 @@
 import * as cloudflare from '@pulumi/cloudflare';
 import * as pulumi from '@pulumi/pulumi';
-import { byAppEnvironment, type AppEnvironmentPair } from './model.ts';
+import { byAppEnvironment, hostnameFor } from './model.ts';
 import { organizationDomain } from './organization.ts';
 
 /**
@@ -19,10 +19,6 @@ import { organizationDomain } from './organization.ts';
 
 const config = new pulumi.Config();
 const accountId = config.require('cloudflareAccountId');
-
-/** Production is served bare; every other environment is suffixed with its own name. */
-export const hostnameFor = ({ app, environment }: AppEnvironmentPair): string =>
-  `${environment === 'production' ? app : `${app}-${environment}`}.${organizationDomain}`;
 
 /**
  * Owned by the app's own stack, which uploads over them.

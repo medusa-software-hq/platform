@@ -1,4 +1,5 @@
 import * as pulumi from '@pulumi/pulumi';
+import { deployIdentity } from './app-deploy.ts';
 import { appEnvironments } from './app-environment.ts';
 import { appHostnames } from './app-hostname.ts';
 import { appImages, githubPoolProvider } from './app-images.ts';
@@ -56,3 +57,6 @@ export const appRepositoryNames = Object.fromEntries(
 export const appHostnameUrls = Object.fromEntries(
   Object.entries(appHostnames).map(([key, hostname]) => [key, `https://${hostname}`]),
 );
+
+/** What an app's deploy workflow federates with, and where the token it reads lives. */
+export const deployWorkloadIdentity = deployIdentity;
