@@ -24,8 +24,15 @@ const accountId = config.require('cloudflareAccountId');
 export const hostnameFor = ({ app, environment }: AppEnvironmentPair): string =>
   `${environment === 'production' ? app : `${app}-${environment}`}.${organizationDomain}`;
 
-/** Owned by the app's own stack, which uploads over it. */
-const REPLACED_BY_THE_APP = ['content', 'contentSha256'];
+/**
+ * Owned by the app's own stack, which uploads over them.
+ *
+ * The runtime fields belong with the contents: which entry module to run and which
+ * compatibility date to run it under are properties of the code, and the code is the
+ * app's. What stays here is that the Worker exists under a known name, which is all
+ * the custom domain needs.
+ */
+const REPLACED_BY_THE_APP = ['content', 'contentSha256', 'mainModule', 'compatibilityDate'];
 
 /**
  * Answers before the app has ever deployed. Deliberately not a 200: the hostname
