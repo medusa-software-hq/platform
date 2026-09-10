@@ -1,8 +1,10 @@
 import * as github from '@pulumi/github';
 import * as pulumi from '@pulumi/pulumi';
+import { appHostnames } from './app-hostname.ts';
+import { pulumiOrganization } from './app-identity.ts';
 import { appImages, githubPoolProvider } from './app-images.ts';
 import { centralProject } from './central.ts';
-import { APPS, type App } from './model.ts';
+import { APPS, ENVIRONMENTS, appEnvironmentKey, type App } from './model.ts';
 import { githubOrganization } from './organization.ts';
 
 /**
@@ -78,6 +80,22 @@ const forApp = (app: App): github.Repository => {
   );
   variable('GCP_IMAGE_PUSH_PROVIDER', githubPoolProvider.name);
   variable('GCP_IMAGE_PUSH_SERVICE_ACCOUNT', images.pushServiceAccount.email);
+
+  // Which Pulumi organization its stacks live in. The app names its own project and
+  // its own stacks — those are in its repository — but not the organization holding
+  // them, which is this stack's to know.
+  variable('PULUMI_ORGANIZATION', pulumiOrganization);
+
+  // Where each of this app's environments answers. Told rather than derived, because
+  // the rule that turns an app and an environment into a hostname is this stack's —
+  // an app repeating it would be a second copy, free to drift from the domain that
+  // actually exists.
+  for (const environment of ENVIRONMENTS) {
+    variable(
+      `${environment.toUpperCase()}_URL`,
+      `https://${appHostnames[appEnvironmentKey(app, environment)]}`,
+    );
+  }
 
   return repository;
 };
