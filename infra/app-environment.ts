@@ -213,24 +213,18 @@ values:
           repository: `${githubOrganization}/${app}`,
 
           /**
-           * Neither environment deploys itself.
+           * Deploying on merge, for now, which is the thing that makes staging
+           * decorative: both environments run at the same moment from the same
+           * commit, so nothing staging discovers can reach production in time to
+           * stop it.
            *
-           * Both deploying on merge is what made staging decorative: the two ran at
-           * the same moment from the same commit, so nothing staging discovered could
-           * reach production in time to stop it. Silencing production alone would fix
-           * that, but it would leave the order living nowhere — spread across a
-           * trigger here and a webhook there.
-           *
-           * So the order is a program, and it lives in the app's repository: deploy
-           * staging, check that it serves, then deploy production, with the same
-           * commit pinned to both. Starting a deployment is a call whose result comes
-           * back to the caller, which is the only shape in which "and then" can be
-           * written down.
-           *
-           * Previews stay on. A preview is keyed to the branch a pull request is
-           * opened against, and it is what this repository's required checks read.
+           * Turning this off needs something else to start the deployments, and that
+           * needs a Pulumi credential this account cannot issue — it is a personal
+           * account rather than an organization, so it has neither teams nor
+           * organization tokens. Until that is settled, deploying on merge is better
+           * than not deploying at all.
            */
-          deployCommits: false,
+          deployCommits: true,
           previewPullRequests: true,
         },
 
