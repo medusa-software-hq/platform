@@ -27,12 +27,23 @@ export const hostnameFor = ({ app, environment }: AppEnvironmentPair): string =>
 /**
  * Owned by the app's own stack, which uploads over them.
  *
- * The runtime fields belong with the contents: which entry module to run and which
- * compatibility date to run it under are properties of the code, and the code is the
- * app's. What stays here is that the Worker exists under a known name, which is all
- * the custom domain needs.
+ * The runtime fields belong with the contents: which entry module to run, which
+ * compatibility date to run it under, and what the code is handed when it runs are
+ * properties of the code, and the code is the app's. What stays here is that the
+ * Worker exists under a known name, which is all the custom domain needs.
+ *
+ * `bindings` is here for a sharper reason than the rest. A refresh reads back whatever
+ * the app last uploaded, so a binding the app added would show up as something this
+ * stack is missing — and this stack would helpfully take it away again, along with the
+ * app's contents, since an upload replaces the whole Worker at once.
  */
-const REPLACED_BY_THE_APP = ['content', 'contentSha256', 'mainModule', 'compatibilityDate'];
+const REPLACED_BY_THE_APP = [
+  'content',
+  'contentSha256',
+  'mainModule',
+  'compatibilityDate',
+  'bindings',
+];
 
 /**
  * Answers before the app has ever deployed. Deliberately not a 200: the hostname
