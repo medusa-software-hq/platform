@@ -115,9 +115,10 @@ export class AppEnvironment extends pulumi.ComponentResource {
             appPool.workloadIdentityPoolId,
             appPoolProvider.workloadIdentityPoolProviderId,
             this.serviceAccount.email,
+            this.project.projectId,
           ])
           .apply(
-            ([projectNumber, workloadPoolId, providerId, serviceAccount]) =>
+            ([projectNumber, workloadPoolId, providerId, serviceAccount, projectId]) =>
               new pulumi.asset.StringAsset(`values:
   gcp:
     login:
@@ -129,6 +130,10 @@ export class AppEnvironment extends pulumi.ComponentResource {
           serviceAccount: ${serviceAccount}
   pulumiConfig:
     gcp:accessToken: \${gcp.login.accessToken}
+
+    # Where this environment's resources belong. Passed down because the identifier is
+    # generated here — an app repeating it would be a second copy free to drift.
+    gcp:project: ${projectId}
   environmentVariables:
     GOOGLE_OAUTH_ACCESS_TOKEN: \${gcp.login.accessToken}
 `),
