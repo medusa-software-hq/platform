@@ -1,4 +1,9 @@
 import * as pulumi from '@pulumi/pulumi';
+import {
+  appDeployEnvironments,
+  deployEnvironmentName,
+  deployTokenSecretName,
+} from './app-deploy.ts';
 import { appEnvironments } from './app-environment.ts';
 import { appHostnames } from './app-hostname.ts';
 import { appImages, githubPoolProvider } from './app-images.ts';
@@ -55,4 +60,16 @@ export const appRepositoryNames = Object.fromEntries(
 /** Where each app environment is served. */
 export const appHostnameUrls = Object.fromEntries(
   Object.entries(appHostnames).map(([key, hostname]) => [key, `https://${hostname}`]),
+);
+
+/**
+ * Which GitHub environment each app's workflow names to reach its Pulumi credential,
+ * and what the secret in it is called. The value is set by hand and is not this
+ * stack's to know.
+ */
+export const appDeployCredentials = Object.fromEntries(
+  Object.entries(appDeployEnvironments).map(([app]) => [
+    app,
+    { environment: deployEnvironmentName, secret: deployTokenSecretName },
+  ]),
 );
