@@ -1,6 +1,9 @@
 import * as gcp from '@pulumi/gcp';
 import * as pulumi from '@pulumi/pulumi';
+import * as service from '@pulumi/pulumiservice';
 import * as random from '@pulumi/random';
+import { appPool, appPoolProvider, escSubject, pulumiOrganization } from './app-identity.ts';
+import { centralProject, centralServices } from './central.ts';
 import { appFolders } from './folders.ts';
 import {
   byAppEnvironment,
@@ -18,17 +21,24 @@ interface AppEnvironmentArgs {
 }
 
 /**
- * One app in one environment.
+ * One app in one environment: its project, the account that deploys into it, and the
+ * environment that account is reached through.
  *
- * Its own project, inside its own folder, so an app is a subtree rather than pieces
- * scattered across shared ones — removing it is removing the folder, not hunting.
+ * The project sits in its own folder, so an app is a subtree rather than pieces
+ * scattered across shared ones. The account deliberately does not: an app holds broad
+ * rights inside its project, so an account kept there would be one it could rewrite.
+ * It lives in central, which apps cannot write to.
  *
- * The identity that deploys into this project deliberately does not live here. An app
- * holds broad rights inside its own project, so an account kept alongside would be one
- * the app could rewrite; it belongs in a project this stack owns instead.
+ * `roles/owner` on its own project, rather than an enumerated list. The list was the
+ * wrong granularity — needing a Pub/Sub topic should not be a change to this repository
+ * — and it was never a real bound anyway, since any role permitting `setIamPolicy`
+ * lets the holder widen it. The actual bound is the service policy the bootstrap stack
+ * sets above these folders, which nothing here can override.
  */
 export class AppEnvironment extends pulumi.ComponentResource {
   readonly project: gcp.organizations.Project;
+  readonly serviceAccount: gcp.serviceaccount.Account;
+  readonly environment: service.Environment;
 
   constructor(
     { app, environment, folder }: AppEnvironmentArgs,
@@ -37,11 +47,9 @@ export class AppEnvironment extends pulumi.ComponentResource {
     const name = `${app}-${environment}`;
     super('medusa:platform:AppEnvironment', name, {}, options);
 
-    const suffix = new random.RandomId(
-      `${name}-project-suffix`,
-      { byteLength: 2 },
-      { parent: this },
-    );
+    const parent = { parent: this };
+
+    const suffix = new random.RandomId(`${name}-project-suffix`, { byteLength: 2 }, parent);
 
     this.project = new gcp.organizations.Project(
       name,
@@ -58,10 +66,81 @@ export class AppEnvironment extends pulumi.ComponentResource {
         // Exploration phase: `destroy` should actually destroy.
         deletionPolicy: 'DELETE',
       },
-      { parent: this },
+      parent,
     );
 
-    this.registerOutputs({ projectId: this.project.projectId });
+    this.serviceAccount = new gcp.serviceaccount.Account(
+      name,
+      {
+        project: centralProject.projectId,
+        accountId: `${app}-${ENVIRONMENT_SHORT_NAMES[environment]}`,
+        displayName: `${app} - ${environment}`,
+        description: `Deploys ${app} into ${environment}.`,
+      },
+      { parent: this, dependsOn: centralServices },
+    );
+
+    new gcp.projects.IAMMember(
+      `${name}-owner`,
+      {
+        project: this.project.projectId,
+        role: 'roles/owner',
+        member: this.serviceAccount.member,
+      },
+      parent,
+    );
+
+    // One environment, one account. Service account IAM takes well over a minute to
+    // take effect, and while it propagates the token exchange succeeds and only the
+    // impersonation is denied — which reads exactly like a malformed principal.
+    new gcp.serviceaccount.IAMMember(
+      `${name}-workload-identity`,
+      {
+        serviceAccountId: this.serviceAccount.name,
+        role: 'roles/iam.workloadIdentityUser',
+        member: pulumi.interpolate`principal://iam.googleapis.com/${appPool.name}/subject/${escSubject(app, environment)}`,
+      },
+      parent,
+    );
+
+    this.environment = new service.Environment(
+      name,
+      {
+        organization: pulumiOrganization,
+        project: app,
+        name: environment,
+        yaml: pulumi
+          .all([
+            centralProject.number,
+            appPool.workloadIdentityPoolId,
+            appPoolProvider.workloadIdentityPoolProviderId,
+            this.serviceAccount.email,
+          ])
+          .apply(
+            ([projectNumber, workloadPoolId, providerId, serviceAccount]) =>
+              new pulumi.asset.StringAsset(`values:
+  gcp:
+    login:
+      fn::open::gcp-login:
+        project: ${projectNumber}
+        oidc:
+          workloadPoolId: ${workloadPoolId}
+          providerId: ${providerId}
+          serviceAccount: ${serviceAccount}
+  pulumiConfig:
+    gcp:accessToken: \${gcp.login.accessToken}
+  environmentVariables:
+    GOOGLE_OAUTH_ACCESS_TOKEN: \${gcp.login.accessToken}
+`),
+          ),
+      },
+      parent,
+    );
+
+    this.registerOutputs({
+      projectId: this.project.projectId,
+      serviceAccountEmail: this.serviceAccount.email,
+    });
   }
 }
 
