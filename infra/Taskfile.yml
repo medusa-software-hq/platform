@@ -5,6 +5,12 @@ version: '3'
 tasks:
   install:
     desc: Install dependencies
+
+    # `fixAll` runs several tasks at once and every one of them depends on this. Task
+    # re-runs a dependency per dependent by default, so without this two installs start
+    # in the same directory before either finishes — the fingerprint below cannot help,
+    # because neither has produced anything yet when the other checks.
+    run: once
     sources:
       - package.json
       - package-lock.json
