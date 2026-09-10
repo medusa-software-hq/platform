@@ -213,18 +213,23 @@ values:
           repository: `${githubOrganization}/${app}`,
 
           /**
-           * Deploying on merge, for now, which is the thing that makes staging
-           * decorative: both environments run at the same moment from the same
-           * commit, so nothing staging discovers can reach production in time to
-           * stop it.
+           * Neither environment deploys itself.
            *
-           * Turning this off needs something else to start the deployments, and that
-           * needs a Pulumi credential this account cannot issue — it is a personal
-           * account rather than an organization, so it has neither teams nor
-           * organization tokens. Until that is settled, deploying on merge is better
-           * than not deploying at all.
+           * Both deploying on merge is what made staging decorative. They ran in the
+           * same second from the same commit, so nothing staging could discover would
+           * reach production in time to stop it — which is worse than having no
+           * staging, because it looks like a safety net.
+           *
+           * The app's repository asks the deploy workflow to run instead, and that
+           * deploys staging, checks that it serves what was just deployed, and only
+           * then deploys production, with the same commit pinned to both.
+           *
+           * Previews stay on. A preview is keyed to the branch a pull request is
+           * opened against, and it is what an app's required checks read — turning it
+           * off would leave a check that never arrives, which blocks a pull request
+           * forever rather than failing it.
            */
-          deployCommits: true,
+          deployCommits: false,
           previewPullRequests: true,
         },
 
