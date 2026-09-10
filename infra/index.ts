@@ -1,6 +1,7 @@
 import * as pulumi from '@pulumi/pulumi';
 import { appEnvironments } from './app-environment.ts';
 import { appImages, githubPoolProvider } from './app-images.ts';
+import { appRepositories } from './app-repository.ts';
 import { centralProject } from './central.ts';
 import { appFolders, sharedFolder } from './folders.ts';
 import { billingAccount, organization } from './organization.ts';
@@ -45,3 +46,7 @@ export const imagePushServiceAccountEmails = Object.fromEntries(
 );
 
 //endregion
+
+export const appRepositoryNames = Object.fromEntries(
+  Object.entries(appRepositories).map(([app, repository]) => [app, repository.fullName]),
+);
