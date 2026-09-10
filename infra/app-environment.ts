@@ -183,9 +183,10 @@ export class AppEnvironment extends pulumi.ComponentResource {
     # may replace Worker contents and holds no zone permission of any kind.
     cloudflare:apiToken:
       fn::secret: ${apiToken}
-    # The Worker this environment's contents belong to. Its hostname and route are the
-    # platform stack's business; only what it returns is the app's.
+    # The Worker this environment's contents belong to. Its hostname and custom domain
+    # are the platform stack's business; only what it returns is the app's.
     ${app}:workerName: ${name}
+    ${app}:cloudflareAccountId: ${cloudflareAccountId}
   environmentVariables:
     GOOGLE_OAUTH_ACCESS_TOKEN: \${gcp.login.accessToken}
 `),
