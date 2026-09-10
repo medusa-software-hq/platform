@@ -208,6 +208,17 @@ values:
         project: app,
         stack: environment,
 
+        /**
+         * Every deployment installs this program's dependencies before it can plan
+         * anything, and there are four of them for every change — a preview of each
+         * environment on the pull request, and an update of each on the merge. The
+         * install is the same one each time.
+         *
+         * Only the Pulumi project's own dependencies. Anything a program installs
+         * while it runs is its own business and is not covered by this.
+         */
+        cacheOptions: { enable: true },
+
         // eslint-disable-next-line typescript/no-deprecated
         github: {
           repository: `${githubOrganization}/${app}`,
