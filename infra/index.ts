@@ -1,4 +1,5 @@
 import * as pulumi from '@pulumi/pulumi';
+import { appDeployTokens } from './app-deploy.ts';
 import { appEnvironments } from './app-environment.ts';
 import { appHostnames } from './app-hostname.ts';
 import { appImages, githubPoolProvider } from './app-images.ts';
@@ -55,4 +56,12 @@ export const appRepositoryNames = Object.fromEntries(
 /** Where each app environment is served. */
 export const appHostnameUrls = Object.fromEntries(
   Object.entries(appHostnames).map(([key, hostname]) => [key, `https://${hostname}`]),
+);
+
+/**
+ * Which token each app's repository deploys with. The name only — the value is written
+ * straight into the repository's secrets and is never an output of this stack.
+ */
+export const appDeployTokenNames = Object.fromEntries(
+  Object.entries(appDeployTokens).map(([app, token]) => [app, token.name]),
 );
