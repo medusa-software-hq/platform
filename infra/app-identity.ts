@@ -58,3 +58,16 @@ export const appPoolProvider = new gcp.iam.WorkloadIdentityPoolProvider(
   },
   dependsOn,
 );
+
+/**
+ * Operations a deployment of an app stack may authenticate for.
+ *
+ * `destroy` is absent: GCP matches subjects exactly and allows no wildcard, so an
+ * operation with no binding cannot obtain a credential at all. Removing a resource from
+ * a program is an `update` and still works; discarding a whole environment does not.
+ */
+export const DEPLOY_OPERATIONS = ['preview', 'update', 'refresh'] as const;
+
+/** The subject Pulumi Cloud puts in tokens issued for a deployment, one per operation. */
+export const deploySubject = (app: string, stack: string, operation: string): string =>
+  `pulumi:deploy:org:${pulumiOrganization}:project:${app}:stack:${stack}:operation:${operation}:scope:write`;
