@@ -145,18 +145,32 @@ export class AppEnvironment extends pulumi.ComponentResource {
      *
      * Not the account the app deploys with: a service pulls its image as the project's
      * own Cloud Run agent, which is a different principal and one that does not exist
-     * until something asks for it. Asking for it here means the grant below has
-     * somebody to name, rather than failing on a first deployment because the account
-     * it refers to has never been created.
+     * until the service it belongs to is enabled. Asking for the identity is not
+     * enough on its own — that returns the name the account will have, and IAM will
+     * refuse a name that nothing has created yet.
+     *
+     * So the service is enabled here rather than by the app, which is the one thing
+     * this stack takes back from a project an app otherwise owns. It is taken back
+     * because the grant below needs it, not because an app cannot be trusted with it.
      *
      * The registry is in central, which an app cannot reach, so this crosses a
      * boundary and belongs on this side of it. Read only, and only this app's own
      * registry.
      */
+    const runService = new gcp.projects.Service(
+      `${name}-run`,
+      {
+        project: this.project.projectId,
+        service: 'run.googleapis.com',
+        disableOnDestroy: false,
+      },
+      parent,
+    );
+
     const runAgent = new gcp.projects.ServiceIdentity(
       `${name}-run-agent`,
       { project: this.project.projectId, service: 'run.googleapis.com' },
-      parent,
+      { parent: this, dependsOn: runService },
     );
 
     new gcp.artifactregistry.RepositoryIamMember(
@@ -168,7 +182,7 @@ export class AppEnvironment extends pulumi.ComponentResource {
         role: 'roles/artifactregistry.reader',
         member: runAgent.member,
       },
-      parent,
+      { parent: this, dependsOn: runAgent },
     );
 
     /**
