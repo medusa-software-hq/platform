@@ -1,3 +1,4 @@
+import * as cloudflare from '@pulumi/cloudflare';
 import * as gcp from '@pulumi/gcp';
 import * as pulumi from '@pulumi/pulumi';
 import * as service from '@pulumi/pulumiservice';
@@ -13,6 +14,23 @@ import {
   type Environment,
 } from './model.ts';
 import { billingAccount } from './organization.ts';
+
+const config = new pulumi.Config();
+const cloudflareAccountId = config.require('cloudflareAccountId');
+
+/**
+ * What an app may do in Cloudflare: replace the contents of a Worker, and nothing else.
+ *
+ * Cloudflare scopes this permission to an account and offers nothing finer — no
+ * per-script grant exists. So an app can in principle overwrite a sibling's code. That
+ * is accepted deliberately: the boundary worth holding is the zone, and no app has any
+ * zone permission at all, so none can create, move or repoint a hostname.
+ *
+ * The identifier rather than a lookup: these are Cloudflare-wide constants, and the
+ * data source returns no permission groups whether the name filter is URL-encoded or
+ * not. Read back from the account's own list, where it is named `Workers Scripts Write`.
+ */
+const WORKERS_SCRIPTS_WRITE = 'e086da7e2179491d91ee5f35b3ca210a';
 
 interface AppEnvironmentArgs {
   app: App;
@@ -39,6 +57,7 @@ export class AppEnvironment extends pulumi.ComponentResource {
   readonly project: gcp.organizations.Project;
   readonly serviceAccount: gcp.serviceaccount.Account;
   readonly environment: service.Environment;
+  readonly cloudflareToken: cloudflare.AccountToken;
 
   constructor(
     { app, environment, folder }: AppEnvironmentArgs,
@@ -103,6 +122,30 @@ export class AppEnvironment extends pulumi.ComponentResource {
       parent,
     );
 
+    /**
+     * The app's own Cloudflare credential, minted here so the app never sees the token
+     * this stack holds. One per environment rather than per app, so revoking staging's
+     * leaves production alone.
+     */
+    this.cloudflareToken = new cloudflare.AccountToken(
+      name,
+      {
+        accountId: cloudflareAccountId,
+        name,
+        policies: [
+          {
+            effect: 'allow',
+            permissionGroups: [{ id: WORKERS_SCRIPTS_WRITE }],
+            // Typed as a string despite the schema calling it a json object.
+            resources: JSON.stringify({
+              [`com.cloudflare.api.account.${cloudflareAccountId}`]: '*',
+            }),
+          },
+        ],
+      },
+      parent,
+    );
+
     // No blank lines inside this document. ESC strips them when it saves, so one here
     // makes every plan report a change to an environment nobody touched.
     this.environment = new service.Environment(
@@ -118,9 +161,10 @@ export class AppEnvironment extends pulumi.ComponentResource {
             appPoolProvider.workloadIdentityPoolProviderId,
             this.serviceAccount.email,
             this.project.projectId,
+            this.cloudflareToken.value,
           ])
           .apply(
-            ([projectNumber, workloadPoolId, providerId, serviceAccount, projectId]) =>
+            ([projectNumber, workloadPoolId, providerId, serviceAccount, projectId, apiToken]) =>
               new pulumi.asset.StringAsset(`values:
   gcp:
     login:
@@ -135,6 +179,13 @@ export class AppEnvironment extends pulumi.ComponentResource {
     # Where this environment's resources belong. Passed down because the identifier is
     # generated here — an app repeating it would be a second copy free to drift.
     gcp:project: ${projectId}
+    # Minted for this environment alone, and narrower than the token that minted it: it
+    # may replace Worker contents and holds no zone permission of any kind.
+    cloudflare:apiToken:
+      fn::secret: ${apiToken}
+    # The Worker this environment's contents belong to. Its hostname and route are the
+    # platform stack's business; only what it returns is the app's.
+    ${app}:workerName: ${name}
   environmentVariables:
     GOOGLE_OAUTH_ACCESS_TOKEN: \${gcp.login.accessToken}
 `),
