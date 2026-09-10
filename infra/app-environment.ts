@@ -3,7 +3,13 @@ import * as gcp from '@pulumi/gcp';
 import * as pulumi from '@pulumi/pulumi';
 import * as service from '@pulumi/pulumiservice';
 import * as random from '@pulumi/random';
-import { appPool, appPoolProvider, escSubject, pulumiOrganization } from './app-identity.ts';
+import {
+  appPool,
+  appPoolProvider,
+  DEPLOY_OPERATIONS,
+  deploySubject,
+  pulumiOrganization,
+} from './app-identity.ts';
 import { centralProject, centralServices } from './central.ts';
 import { appFolders } from './folders.ts';
 import {
@@ -13,7 +19,7 @@ import {
   type AppEnvironmentKey,
   type Environment,
 } from './model.ts';
-import { billingAccount } from './organization.ts';
+import { billingAccount, githubOrganization } from './organization.ts';
 
 const config = new pulumi.Config();
 const cloudflareAccountId = config.require('cloudflareAccountId');
@@ -112,15 +118,26 @@ export class AppEnvironment extends pulumi.ComponentResource {
     // One environment, one account. Service account IAM takes well over a minute to
     // take effect, and while it propagates the token exchange succeeds and only the
     // impersonation is denied — which reads exactly like a malformed principal.
-    new gcp.serviceaccount.IAMMember(
-      `${name}-workload-identity`,
-      {
-        serviceAccountId: this.serviceAccount.name,
-        role: 'roles/iam.workloadIdentityUser',
-        member: pulumi.interpolate`principal://iam.googleapis.com/${appPool.name}/subject/${escSubject(app, environment)}`,
-      },
-      parent,
-    );
+    /**
+     * Assumable by a deployment of this app's stack, and by nothing else.
+     *
+     * Not by whoever opens the environment: an environment's subject names an
+     * environment and no operation, and it arrives as Pulumi configuration, which
+     * overrides the credentials a deployment mints for itself. Bound per operation
+     * because the subject carries the operation and GCP has no wildcard, which is what
+     * makes the omission of `destroy` mean something.
+     */
+    for (const operation of DEPLOY_OPERATIONS) {
+      new gcp.serviceaccount.IAMMember(
+        `${name}-deploy-${operation}`,
+        {
+          serviceAccountId: this.serviceAccount.name,
+          role: 'roles/iam.workloadIdentityUser',
+          member: pulumi.interpolate`principal://iam.googleapis.com/${appPool.name}/subject/${deploySubject(app, environment, operation)}`,
+        },
+        parent,
+      );
+    }
 
     /**
      * The app's own Cloudflare credential, minted here so the app never sees the token
@@ -154,28 +171,13 @@ export class AppEnvironment extends pulumi.ComponentResource {
         organization: pulumiOrganization,
         project: app,
         name: environment,
-        yaml: pulumi
-          .all([
-            centralProject.number,
-            appPool.workloadIdentityPoolId,
-            appPoolProvider.workloadIdentityPoolProviderId,
-            this.serviceAccount.email,
-            this.project.projectId,
-            this.cloudflareToken.value,
-          ])
-          .apply(
-            ([projectNumber, workloadPoolId, providerId, serviceAccount, projectId, apiToken]) =>
-              new pulumi.asset.StringAsset(`values:
-  gcp:
-    login:
-      fn::open::gcp-login:
-        project: ${projectNumber}
-        oidc:
-          workloadPoolId: ${workloadPoolId}
-          providerId: ${providerId}
-          serviceAccount: ${serviceAccount}
+        yaml: pulumi.all([this.project.projectId, this.cloudflareToken.value]).apply(
+          ([projectId, apiToken]) =>
+            new pulumi.asset.StringAsset(`# Carries no Google Cloud credential. Anything here arrives as Pulumi configuration,
+# which overrides what a deployment mints for itself — so a login here would silently
+# demote every deployment to whichever account it named.
+values:
   pulumiConfig:
-    gcp:accessToken: \${gcp.login.accessToken}
     # Where this environment's resources belong. Passed down because the identifier is
     # generated here — an app repeating it would be a second copy free to drift.
     gcp:project: ${projectId}
@@ -187,10 +189,48 @@ export class AppEnvironment extends pulumi.ComponentResource {
     # are the platform stack's business; only what it returns is the app's.
     ${app}:workerName: ${name}
     ${app}:cloudflareAccountId: ${cloudflareAccountId}
-  environmentVariables:
-    GOOGLE_OAUTH_ACCESS_TOKEN: \${gcp.login.accessToken}
 `),
-          ),
+        ),
+      },
+      parent,
+    );
+
+    /**
+     * How this app's stack runs: pull requests previewed, merges to the default branch
+     * applied. Held here rather than in the app repository for the same reason the
+     * identity is — the layer above decides what a stack may do and how it gets to do
+     * it, and neither belongs in a console where nobody can review it.
+     */
+    new service.DeploymentSettings(
+      name,
+      {
+        organization: pulumiOrganization,
+        project: app,
+        stack: environment,
+
+        // eslint-disable-next-line typescript/no-deprecated
+        github: {
+          repository: `${githubOrganization}/${app}`,
+          deployCommits: true,
+          previewPullRequests: true,
+        },
+
+        // No `repoUrl`: the service rejects one alongside the GitHub integration, and
+        // supplying it instead silently downgrades this to a plain git source.
+        sourceContext: { git: { branch: 'refs/heads/main', repoDir: 'infra' } },
+
+        // The deployment's own credentials, whose subject names the stack and the
+        // operation, so a run outside the pipeline cannot produce one.
+        operationContext: {
+          oidc: {
+            gcp: {
+              projectId: centralProject.number,
+              workloadPoolId: appPool.workloadIdentityPoolId,
+              providerId: appPoolProvider.workloadIdentityPoolProviderId,
+              serviceAccount: this.serviceAccount.email,
+            },
+          },
+        },
       },
       parent,
     );
