@@ -103,6 +103,8 @@ export class AppEnvironment extends pulumi.ComponentResource {
       parent,
     );
 
+    // No blank lines inside this document. ESC strips them when it saves, so one here
+    // makes every plan report a change to an environment nobody touched.
     this.environment = new service.Environment(
       name,
       {
@@ -130,7 +132,6 @@ export class AppEnvironment extends pulumi.ComponentResource {
           serviceAccount: ${serviceAccount}
   pulumiConfig:
     gcp:accessToken: \${gcp.login.accessToken}
-
     # Where this environment's resources belong. Passed down because the identifier is
     # generated here — an app repeating it would be a second copy free to drift.
     gcp:project: ${projectId}
