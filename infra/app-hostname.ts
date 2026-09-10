@@ -57,10 +57,13 @@ export const appScripts = byAppEnvironment((pair) => {
     { ignoreChanges: REPLACED_BY_THE_APP },
   );
 
+  // `service` is taken from the script rather than repeating its name, so the
+  // dependency exists. With a bare string Pulumi sees no edge, creates both at once,
+  // and Cloudflare rejects a domain for a Worker that does not exist yet.
   new cloudflare.WorkersCustomDomain(pair.key, {
     accountId,
     hostname,
-    service: pair.key,
+    service: script.scriptName,
     zoneName: organizationDomain,
   });
 
