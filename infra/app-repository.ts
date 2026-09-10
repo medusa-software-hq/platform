@@ -3,7 +3,6 @@ import * as pulumi from '@pulumi/pulumi';
 import { deployIdentity } from './app-deploy.ts';
 import { pulumiOrganization } from './app-identity.ts';
 import { appImages, githubPoolProvider } from './app-images.ts';
-import { centralProject } from './central.ts';
 import { APPS, type App } from './model.ts';
 import { githubOrganization } from './organization.ts';
 
@@ -74,10 +73,7 @@ const forApp = (app: App): github.Repository => {
       { provider: githubProvider },
     );
 
-  variable(
-    'IMAGE_REGISTRY',
-    pulumi.interpolate`${images.registry.location}-docker.pkg.dev/${centralProject.projectId}/${images.registry.repositoryId}`,
-  );
+  variable('IMAGE_REGISTRY', images.path);
   variable('GCP_IMAGE_PUSH_PROVIDER', githubPoolProvider.name);
   variable('GCP_IMAGE_PUSH_SERVICE_ACCOUNT', images.pushServiceAccount.email);
 

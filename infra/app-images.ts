@@ -58,6 +58,10 @@ export const githubPoolProvider = new gcp.iam.WorkloadIdentityPoolProvider(
 
 export interface AppImages {
   registry: gcp.artifactregistry.Repository;
+
+  /** What an image in it is called, up to the name and the tag. */
+  path: pulumi.Output<string>;
+
   pushServiceAccount: gcp.serviceaccount.Account;
 }
 
@@ -125,7 +129,11 @@ const forApp = (app: App): AppImages => {
     member: pulumi.interpolate`principalSet://iam.googleapis.com/${githubPool.name}/attribute.repository/${githubOrganization}/${app}`,
   });
 
-  return { registry, pushServiceAccount };
+  return {
+    registry,
+    path: pulumi.interpolate`${registry.location}-docker.pkg.dev/${centralProject.projectId}/${registry.repositoryId}`,
+    pushServiceAccount,
+  };
 };
 
 export const appImages: Record<App, AppImages> = Object.fromEntries(

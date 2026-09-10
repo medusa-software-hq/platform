@@ -10,6 +10,7 @@ import {
   deploySubject,
   pulumiOrganization,
 } from './app-identity.ts';
+import { appImages } from './app-images.ts';
 import { centralProject, centralServices } from './central.ts';
 import { appFolders } from './folders.ts';
 import {
@@ -19,7 +20,7 @@ import {
   type AppEnvironmentKey,
   type Environment,
 } from './model.ts';
-import { billingAccount, githubOrganization } from './organization.ts';
+import { billingAccount, githubOrganization, primaryLocation } from './organization.ts';
 
 const config = new pulumi.Config();
 const cloudflareAccountId = config.require('cloudflareAccountId');
@@ -140,6 +141,37 @@ export class AppEnvironment extends pulumi.ComponentResource {
     }
 
     /**
+     * The account Cloud Run pulls images as, and the one thing it may pull.
+     *
+     * Not the account the app deploys with: a service pulls its image as the project's
+     * own Cloud Run agent, which is a different principal and one that does not exist
+     * until something asks for it. Asking for it here means the grant below has
+     * somebody to name, rather than failing on a first deployment because the account
+     * it refers to has never been created.
+     *
+     * The registry is in central, which an app cannot reach, so this crosses a
+     * boundary and belongs on this side of it. Read only, and only this app's own
+     * registry.
+     */
+    const runAgent = new gcp.projects.ServiceIdentity(
+      `${name}-run-agent`,
+      { project: this.project.projectId, service: 'run.googleapis.com' },
+      parent,
+    );
+
+    new gcp.artifactregistry.RepositoryIamMember(
+      `${name}-registry-reader`,
+      {
+        project: centralProject.projectId,
+        location: appImages[app].registry.location,
+        repository: appImages[app].registry.name,
+        role: 'roles/artifactregistry.reader',
+        member: runAgent.member,
+      },
+      parent,
+    );
+
+    /**
      * The app's own Cloudflare credential, minted here so the app never sees the token
      * this stack holds. One per environment rather than per app, so revoking staging's
      * leaves production alone.
@@ -171,9 +203,11 @@ export class AppEnvironment extends pulumi.ComponentResource {
         organization: pulumiOrganization,
         project: app,
         name: environment,
-        yaml: pulumi.all([this.project.projectId, this.cloudflareToken.value]).apply(
-          ([projectId, apiToken]) =>
-            new pulumi.asset.StringAsset(`# Carries no Google Cloud credential. Anything here arrives as Pulumi configuration,
+        yaml: pulumi
+          .all([this.project.projectId, this.cloudflareToken.value, appImages[app].path])
+          .apply(
+            ([projectId, apiToken, imageRegistry]) =>
+              new pulumi.asset.StringAsset(`# Carries no Google Cloud credential. Anything here arrives as Pulumi configuration,
 # which overrides what a deployment mints for itself — so a login here would silently
 # demote every deployment to whichever account it named.
 values:
@@ -189,8 +223,14 @@ values:
     # are the platform stack's business; only what it returns is the app's.
     ${app}:workerName: ${name}
     ${app}:cloudflareAccountId: ${cloudflareAccountId}
+    # Where regional resources belong. One region for everything, so a service and
+    # the registry it pulls from are never accidentally an ocean apart.
+    gcp:region: ${primaryLocation}
+    # What an image of this app is called, up to its name and tag. Passed down
+    # because the registry is in a project the app cannot see.
+    ${app}:imageRegistry: ${imageRegistry}
 `),
-        ),
+          ),
       },
       parent,
     );
