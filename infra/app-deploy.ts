@@ -122,6 +122,33 @@ export const deployServiceAccount = new gcp.serviceaccount.Account(
   dependsOn,
 );
 
+/**
+ * Who may put a token in, which is not who may read one.
+ *
+ * The value arrives by hand, on purpose — a personal access token is minted by a
+ * person in the Pulumi console, and writing it into this program would put it in this
+ * stack's state and in every plan that reads it. But central belongs to the account
+ * this stack deploys with, so administering the organization grants nothing inside it,
+ * and without saying so nobody can supply the value at all.
+ *
+ * A group, not a person. Who administers this organization is a fact about the
+ * organization rather than about a program, and it changes by adding somebody to a
+ * group rather than by editing and deploying this. The group already exists and is
+ * already what the organization's own administrator bindings name.
+ *
+ * The role carries `secretmanager.versions.add` and not `versions.access`, so whoever
+ * supplies the credential cannot read it back afterwards. Nothing can, except the
+ * account the deploy workflow federates into.
+ */
+const SECRET_KEEPER = 'group:gcp-organization-admins@medusa.software';
+
+new gcp.secretmanager.SecretIamMember('pulumi-deploy-token-keeper', {
+  project: centralProject.projectId,
+  secretId: deployTokenSecret.secretId,
+  role: 'roles/secretmanager.secretVersionAdder',
+  member: SECRET_KEEPER,
+});
+
 new gcp.secretmanager.SecretIamMember('pulumi-deploy-token-accessor', {
   project: centralProject.projectId,
   secretId: deployTokenSecret.secretId,
