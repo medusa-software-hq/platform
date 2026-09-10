@@ -2,7 +2,7 @@ import * as gcp from '@pulumi/gcp';
 import * as pulumi from '@pulumi/pulumi';
 import { centralProject, centralServices } from './central.ts';
 import { APPS, type App } from './model.ts';
-import { githubOrganization } from './organization.ts';
+import { githubOrganization, organizationAdmins } from './organization.ts';
 
 /**
  * How an app's repository comes to hold a Pulumi credential without ever holding it.
@@ -131,16 +131,11 @@ export const deployServiceAccount = new gcp.serviceaccount.Account(
  * this stack deploys with, so administering the organization grants nothing inside it,
  * and without saying so nobody can supply the value at all.
  *
- * A group, not a person. Who administers this organization is a fact about the
- * organization rather than about a program, and it changes by adding somebody to a
- * group rather than by editing and deploying this. The group already exists and is
- * already what the organization's own administrator bindings name.
- *
  * The role carries `secretmanager.versions.add` and not `versions.access`, so whoever
  * supplies the credential cannot read it back afterwards. Nothing can, except the
  * account the deploy workflow federates into.
  */
-const SECRET_KEEPER = 'group:gcp-organization-admins@medusa.software';
+const SECRET_KEEPER = organizationAdmins;
 
 new gcp.secretmanager.SecretIamMember('pulumi-deploy-token-keeper', {
   project: centralProject.projectId,

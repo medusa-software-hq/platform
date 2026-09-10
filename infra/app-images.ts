@@ -2,7 +2,7 @@ import * as gcp from '@pulumi/gcp';
 import * as pulumi from '@pulumi/pulumi';
 import { centralProject, centralServices } from './central.ts';
 import { APPS, type App } from './model.ts';
-import { githubOrganization, primaryLocation } from './organization.ts';
+import { githubOrganization, organizationAdmins, primaryLocation } from './organization.ts';
 
 /**
  * Where an app's images live, and what may push them.
@@ -95,6 +95,26 @@ const forApp = (app: App): AppImages => {
     repository: registry.name,
     role: 'roles/artifactregistry.writer',
     member: pushServiceAccount.member,
+  });
+
+  /**
+   * Readable by whoever administers the organization.
+   *
+   * Central belongs to the account this stack deploys with, so nobody could look at
+   * what the pipeline pushed — not the tags, not the digests, not whether an image
+   * exists at all. The only way to find out was to read a workflow's log, which is
+   * the wrong place to learn what is in a registry.
+   *
+   * Read and nothing else: what is in there is put there by the push identity, on a
+   * merge, and a person reaching past that would be making the registry disagree with
+   * the repository.
+   */
+  new gcp.artifactregistry.RepositoryIamMember(`${app}-registry-reader`, {
+    project: centralProject.projectId,
+    location: registry.location,
+    repository: registry.name,
+    role: 'roles/artifactregistry.reader',
+    member: organizationAdmins,
   });
 
   // Impersonation, rather than granting the federated principal directly: pushing an
