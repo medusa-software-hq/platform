@@ -6,6 +6,15 @@ export { organizationDomain };
 /** Where regional resources live unless something argues otherwise. */
 export const primaryLocation = 'europe-west1';
 
+/**
+ * Who administers this organization, as a group rather than as people.
+ *
+ * Which people hold a role is a property of the organization, not of a program:
+ * naming one here would make a deployment the way to change who somebody is, and
+ * leave an identity that outlives its holder. Membership changes instead.
+ */
+export const organizationAdmins = `group:gcp-organization-admins@${organizationDomain}`;
+
 /** The GitHub organization that owns every repository this stack provisions. */
 export const githubOrganization = 'medusa-software-hq';
 
