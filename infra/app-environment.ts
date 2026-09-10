@@ -223,9 +223,9 @@ values:
            *
            * So the order is a program, and it lives in the app's repository: deploy
            * staging, check that it serves, then deploy production, with the same
-           * commit pinned to both. What starts a deployment is a call whose result
-           * comes back to the caller, which is the only shape in which "and then" can
-           * be written down.
+           * commit pinned to both. Starting a deployment is a call whose result comes
+           * back to the caller, which is the only shape in which "and then" can be
+           * written down.
            *
            * Previews stay on. A preview is keyed to the branch a pull request is
            * opened against, and it is what this repository's required checks read.

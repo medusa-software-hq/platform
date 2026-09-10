@@ -2,78 +2,46 @@ import * as github from '@pulumi/github';
 import * as service from '@pulumi/pulumiservice';
 import { pulumiOrganization } from './app-identity.ts';
 import { appRepositories, githubProvider } from './app-repository.ts';
-import { APPS, ENVIRONMENTS, type App } from './model.ts';
+import { APPS, type App } from './model.ts';
 
 /**
  * What an app needs in order to deploy itself, in the order it has decided on.
  *
- * Neither of an app's stacks deploys on merge. Its repository does the whole
+ * Neither of an app's stacks deploys on merge. Its repository runs the whole
  * sequence — staging first, then a check that staging serves what was just deployed,
  * then production with the same commit pinned. That is a program rather than a set of
- * triggers, and the thing running it needs to be able to start a deployment of either
- * stack.
- *
- * So it is given exactly that, and nothing more: two stacks it may deploy, and no
- * visibility into anything else in the organization.
+ * triggers, and the thing running it has to be able to start a deployment.
  */
 
 /**
- * `Edit`, deliberately, and not `Admin`.
+ * Wider than it should be, and knowingly so.
  *
- * Admin on a stack includes rewriting its deployment settings — the source, the
- * pre-run commands, and the OIDC configuration that decides which Google Cloud
- * account a deployment runs as. An app able to rewrite those could describe itself as
- * something else and redeploy, which would undo every boundary this stack draws.
+ * Pulumi scopes tokens to teams, and teams are a paid plan feature this organization
+ * does not have. The narrowest thing available is an organization token, which can
+ * start a deployment of any stack here — including this one.
  *
- * Starting a deployment is not affected: the identity it runs as is minted from the
- * settings, which this cannot change.
+ * What bounds it is everything around it, none of which this token can reach. It is
+ * not an admin token, so it cannot change a stack's program or its deployment
+ * settings. A deployment runs as the identity those settings name rather than as
+ * whoever asked for it, so starting one grants nothing. And `destroy` has no identity
+ * bound to it anywhere in this organization, so a destroy started with this would run
+ * without credentials and fail. The worst it can do to a stack that is not its own is
+ * make that stack apply what is already committed to it.
+ *
+ * That is a bound on the damage, not a defence against the hole. The hole closes by
+ * paying for teams.
  */
-const PERMISSION = service.TeamStackPermissionScope.Edit;
+const ADMIN = false;
 
-/**
- * A team with no members, existing only to be something a token can be scoped to.
- * Pulumi scopes tokens to teams rather than to stacks, so a team is the shape this
- * permission has to take.
- */
-const forApp = (app: App): service.TeamAccessToken => {
+const forApp = (app: App): service.OrgAccessToken => {
   const name = `${app}-deploy`;
 
-  const team = new service.Team(name, {
+  const token = new service.OrgAccessToken(name, {
     organizationName: pulumiOrganization,
     name,
-    teamType: 'pulumi',
-    displayName: `${app} deploy`,
-    description: `Deploys ${app}, in the order its repository decides. Holds no members.`,
+    description: `Lets ${app}'s repository deploy ${app}, in the order it decides.`,
+    admin: ADMIN,
   });
-
-  // The team's own name is optional in the schema and so arrives as possibly absent.
-  // The constant is what was asked for; the dependency is what makes the order right.
-  const afterTheTeam = { dependsOn: team };
-
-  for (const environment of ENVIRONMENTS) {
-    new service.TeamStackPermission(
-      `${name}-${environment}`,
-      {
-        organization: pulumiOrganization,
-        project: app,
-        stack: environment,
-        team: name,
-        permission: PERMISSION,
-      },
-      afterTheTeam,
-    );
-  }
-
-  const token = new service.TeamAccessToken(
-    name,
-    {
-      organizationName: pulumiOrganization,
-      teamName: name,
-      name,
-      description: `Lets ${app}'s repository deploy ${app}.`,
-    },
-    afterTheTeam,
-  );
 
   new github.ActionsSecret(
     `${app}-deploy-token`,
@@ -88,6 +56,6 @@ const forApp = (app: App): service.TeamAccessToken => {
   return token;
 };
 
-export const appDeployTokens: Record<App, service.TeamAccessToken> = Object.fromEntries(
+export const appDeployTokens: Record<App, service.OrgAccessToken> = Object.fromEntries(
   APPS.map((app) => [app, forApp(app)]),
-) as Record<App, service.TeamAccessToken>;
+) as Record<App, service.OrgAccessToken>;
