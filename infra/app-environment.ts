@@ -141,32 +141,32 @@ export class AppEnvironment extends pulumi.ComponentResource {
     }
 
     /**
-     * The account Cloud Run pulls images as, and the one thing it may pull.
+     * The app's registry is the app's, and this says so.
      *
-     * Not the account the app deploys with: a service pulls its image as the project's
-     * own Cloud Run agent, which is a different principal and one that does not exist
-     * until something asks for it. Asking for it here means the grant below has
-     * somebody to name, rather than failing on a first deployment because the account
-     * it refers to has never been created.
+     * It sits in central rather than in the app's own project so that staging and
+     * production can share one image — built once, promoted rather than rebuilt —
+     * and for no other reason. It is the app's resource lodged in somebody else's
+     * project, so the app administers it.
      *
-     * The registry is in central, which an app cannot reach, so this crosses a
-     * boundary and belongs on this side of it. Read only, and only this app's own
-     * registry.
+     * Admin, which includes setting its IAM policy. That is what lets an app grant
+     * whatever principal pulls its images the right to read them, without this stack
+     * knowing or caring what that principal is. A Cloud Run agent today; a Compute
+     * service account, a node pool, or something not invented yet tomorrow. Deciding
+     * that here would be this stack deciding how an app runs, which is the one thing
+     * a project handed over as a blank canvas must not come with.
+     *
+     * It follows that an app can delete its own images, and that its staging account
+     * can reach production's. Both are consequences of the registry being shared
+     * between an app's environments, which is the property it exists for.
      */
-    const runAgent = new gcp.projects.ServiceIdentity(
-      `${name}-run-agent`,
-      { project: this.project.projectId, service: 'run.googleapis.com' },
-      parent,
-    );
-
     new gcp.artifactregistry.RepositoryIamMember(
-      `${name}-registry-reader`,
+      `${name}-registry-admin`,
       {
         project: centralProject.projectId,
         location: appImages[app].registry.location,
         repository: appImages[app].registry.name,
-        role: 'roles/artifactregistry.reader',
-        member: runAgent.member,
+        role: 'roles/artifactregistry.admin',
+        member: this.serviceAccount.member,
       },
       parent,
     );
