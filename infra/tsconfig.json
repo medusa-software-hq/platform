@@ -10,5 +10,9 @@
     "noEmit": true
   },
   "include": ["**/*.ts"],
-  "exclude": ["node_modules"]
+  // `sdks` holds a generated provider SDK, which is a dependency rather than source
+  // here: it is imported as `@pulumi/neon` and ships its own compiled types. Without
+  // this, `include` sweeps its TypeScript in and checks somebody else's generated code
+  // against our strictest settings, which it was never written to pass.
+  "exclude": ["node_modules", "sdks"]
 }
