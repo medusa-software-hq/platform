@@ -204,9 +204,15 @@ export class AppEnvironment extends pulumi.ComponentResource {
         project: app,
         name: environment,
         yaml: pulumi
-          .all([this.project.projectId, this.cloudflareToken.value, appImages[app].path])
+          .all([
+            this.project.projectId,
+            this.cloudflareToken.value,
+            appImages[app].registry.project,
+            appImages[app].registry.location,
+            appImages[app].registry.repositoryId,
+          ])
           .apply(
-            ([projectId, apiToken, imageRegistry]) =>
+            ([projectId, apiToken, imageProject, imageLocation, imageRepository]) =>
               new pulumi.asset.StringAsset(`# Carries no Google Cloud credential. Anything here arrives as Pulumi configuration,
 # which overrides what a deployment mints for itself — so a login here would silently
 # demote every deployment to whichever account it named.
@@ -226,9 +232,15 @@ values:
     # Where regional resources belong. One region for everything, so a service and
     # the registry it pulls from are never accidentally an ocean apart.
     gcp:region: ${primaryLocation}
-    # What an image of this app is called, up to its name and tag. Passed down
-    # because the registry is in a project the app cannot see.
-    ${app}:imageRegistry: ${imageRegistry}
+    # Where this app's images live, in the three parts a registry actually has.
+    # Passed down because they belong to a project the app cannot see — and passed
+    # apart rather than joined, so that whatever needs them can put them together the
+    # way its own API asks for them. Naming a registry to IAM and naming one to
+    # Docker are different shapes of one fact, and neither is the other's substring
+    # by luck.
+    ${app}:imageProject: ${imageProject}
+    ${app}:imageLocation: ${imageLocation}
+    ${app}:imageRepository: ${imageRepository}
 `),
           ),
       },
