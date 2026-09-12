@@ -53,7 +53,14 @@ export const appPoolProvider = new gcp.iam.WorkloadIdentityPoolProvider(
 
     oidc: {
       issuerUri: 'https://api.pulumi.com/oidc',
-      allowedAudiences: [`gcp:${pulumiOrganization}`],
+      // Two forms, because ESC and Deployments issue under different audiences for
+      // the same organization: `gcp:<org>` when an environment opens a login, and the
+      // bare organization name when a deployment mints its own credentials. Accepting
+      // only the first is accepting only the half of this that had been exercised —
+      // an app's stack never touched Google Cloud until it deployed a service, and
+      // then failed with an audience mismatch. The bootstrap stack learned this for
+      // its own pool and it did not travel.
+      allowedAudiences: [`gcp:${pulumiOrganization}`, pulumiOrganization],
     },
   },
   dependsOn,
