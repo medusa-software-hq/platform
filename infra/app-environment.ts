@@ -4,6 +4,7 @@ import * as neon from '@pulumi/neon';
 import * as pulumi from '@pulumi/pulumi';
 import * as service from '@pulumi/pulumiservice';
 import * as random from '@pulumi/random';
+import { accessIssuer, accessKeysUrl, appAccessApplications } from './app-access.ts';
 import {
   appPool,
   appPoolProvider,
@@ -67,6 +68,8 @@ interface AppEnvironmentArgs {
   app: App;
   environment: Environment;
   folder: gcp.organizations.Folder;
+  /** Who may reach this environment, whose audience its tokens carry. */
+  access: cloudflare.ZeroTrustAccessApplication;
 }
 
 /**
@@ -93,7 +96,7 @@ export class AppEnvironment extends pulumi.ComponentResource {
   readonly neonKey: neon.OrgApiKey;
 
   constructor(
-    { app, environment, folder }: AppEnvironmentArgs,
+    { app, environment, folder, access }: AppEnvironmentArgs,
     options?: pulumi.ComponentResourceOptions,
   ) {
     const name = `${app}-${environment}`;
@@ -293,6 +296,7 @@ export class AppEnvironment extends pulumi.ComponentResource {
             appImages[app].registry.repositoryId,
             this.neonProject.id,
             this.neonKey.key,
+            access.aud,
           ])
           .apply(
             ([
@@ -303,6 +307,7 @@ export class AppEnvironment extends pulumi.ComponentResource {
               imageRepository,
               neonProjectId,
               neonKey,
+              authAudience,
             ]) =>
               new pulumi.asset.StringAsset(`# Carries no Google Cloud credential. Anything here arrives as Pulumi configuration,
 # which overrides what a deployment mints for itself — so a login here would silently
@@ -340,6 +345,13 @@ values:
     ${app}:neonProjectId: ${neonProjectId}
     neon:apiKey:
       fn::secret: ${neonKey}
+    # Who this environment's callers are, in what checking them takes rather than in
+    # which product signs them in: who issues their tokens, where the keys signing those
+    # are published, and which tokens are meant for this environment. None of it is a
+    # credential; each only says what a valid one looks like.
+    ${app}:authIssuer: ${accessIssuer}
+    ${app}:authKeysUrl: ${accessKeysUrl}
+    ${app}:authAudience: ${authAudience}
 `),
           ),
       },
@@ -423,5 +435,11 @@ values:
 }
 
 export const appEnvironments: Record<AppEnvironmentKey, AppEnvironment> = byAppEnvironment(
-  ({ app, environment, key }) => new AppEnvironment({ app, environment, folder: appFolders[key] }),
+  ({ app, environment, key }) =>
+    new AppEnvironment({
+      app,
+      environment,
+      folder: appFolders[key],
+      access: appAccessApplications[key],
+    }),
 );

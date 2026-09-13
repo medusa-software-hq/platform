@@ -42,9 +42,25 @@ if (app === undefined) {
 
 const commit = requireEnvironment('GITHUB_SHA');
 
+/**
+ * What gets the smoke test past the sign-in in front of every app: a service token, which the
+ * login admits to the page and its files, and which names nobody, so nothing behind them that
+ * needs a person will answer it.
+ */
+const smokeTestToken = JSON.parse(requireEnvironment('SMOKE_TEST_ACCESS_TOKEN')) as {
+  readonly clientId: string;
+  readonly clientSecret: string;
+};
+
+const smokeTestHeaders = {
+  'cf-access-client-id': smokeTestToken.clientId,
+  'cf-access-client-secret': smokeTestToken.clientSecret,
+};
+
 for (const environment of DEPLOY_ORDER) {
   await deploy(app, environment, commit);
   await smokeTest(
     `https://${hostnameFor({ app, environment, key: appEnvironmentKey(app, environment) })}`,
+    smokeTestHeaders,
   );
 }

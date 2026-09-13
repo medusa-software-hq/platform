@@ -88,6 +88,8 @@ const forApp = (app: App): github.Repository => {
   variable('DEPLOY_IDENTITY_PROVIDER', deployIdentity.provider);
   variable('DEPLOY_SERVICE_ACCOUNT', deployIdentity.serviceAccount);
   variable('DEPLOY_TOKEN_SECRET', deployIdentity.secret);
+  // And how, having deployed, it gets past the sign-in in front of the app to see it answer.
+  variable('DEPLOY_SMOKE_TEST_SECRET', deployIdentity.smokeTestSecret);
 
   return repository;
 };

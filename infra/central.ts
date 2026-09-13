@@ -25,6 +25,9 @@ export const centralProject = new gcp.organizations.Project('central', {
 });
 
 export const centralServices = [
+  // Read by Cloudflare Access, through the OAuth client kept here, for the groups a
+  // Google Workspace account belongs to.
+  'admin.googleapis.com',
   'artifactregistry.googleapis.com',
   'cloudresourcemanager.googleapis.com',
   'iam.googleapis.com',

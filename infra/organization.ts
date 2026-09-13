@@ -28,6 +28,25 @@ export const githubOrganization = 'medusa-software-hq';
  */
 export const neonOrganization = 'org-patient-shadow-78024621';
 
+/**
+ * The Cloudflare Zero Trust team every app signs people in through, as its login address.
+ *
+ * Written here rather than managed. A team is created once, by hand, when Zero Trust is
+ * enabled on the account — a step that asks for a plan and payment details even when the
+ * plan is free — and the provider cannot adopt one afterwards. Everything inside the team
+ * is this stack's.
+ */
+export const accessTeamDomain = 'medusa-software.cloudflareaccess.com';
+
+/**
+ * The OAuth client Access signs people in to Google Workspace through.
+ *
+ * An identifier, so it is written here; the secret it came with is a credential, so it
+ * is not. Made in the central project's console, which has no API for OAuth clients.
+ */
+export const accessIdentityProviderClientId =
+  '509429451634-d8ij1r0cvck9lhmc4jdr8qnmj96ov8q5.apps.googleusercontent.com';
+
 export const organization = gcp.organizations.getOrganizationOutput({
   domain: organizationDomain,
 });

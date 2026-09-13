@@ -71,6 +71,20 @@ export const appScripts = byAppEnvironment((pair) => {
     { ignoreChanges: REPLACED_BY_THE_APP },
   );
 
+  /**
+   * The custom domain as the only way in.
+   *
+   * Access guards hostnames. A Worker also answers at its `workers.dev` address and at a
+   * preview address per version, and neither is a hostname Access was told about — a
+   * request there would reach the app with nobody signed in. So neither exists.
+   */
+  new cloudflare.WorkersScriptSubdomain(pair.key, {
+    accountId,
+    scriptName: script.scriptName,
+    enabled: false,
+    previewsEnabled: false,
+  });
+
   // `service` is taken from the script rather than repeating its name, so the
   // dependency exists. With a bare string Pulumi sees no edge, creates both at once,
   // and Cloudflare rejects a domain for a Worker that does not exist yet.
