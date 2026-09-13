@@ -1,5 +1,6 @@
 import * as cloudflare from '@pulumi/cloudflare';
 import * as gcp from '@pulumi/gcp';
+import * as neon from '@pulumi/neon';
 import * as pulumi from '@pulumi/pulumi';
 import * as service from '@pulumi/pulumiservice';
 import * as random from '@pulumi/random';
@@ -20,7 +21,12 @@ import {
   type AppEnvironmentKey,
   type Environment,
 } from './model.ts';
-import { billingAccount, githubOrganization, primaryLocation } from './organization.ts';
+import {
+  billingAccount,
+  githubOrganization,
+  neonOrganization,
+  primaryLocation,
+} from './organization.ts';
 
 const config = new pulumi.Config();
 const cloudflareAccountId = config.require('cloudflareAccountId');
@@ -38,6 +44,24 @@ const cloudflareAccountId = config.require('cloudflareAccountId');
  * not. Read back from the account's own list, where it is named `Workers Scripts Write`.
  */
 const WORKERS_SCRIPTS_WRITE = 'e086da7e2179491d91ee5f35b3ca210a';
+
+/**
+ * Where an app's database lives.
+ *
+ * Neon runs on other people's clouds, and Frankfurt is the closest it comes to
+ * `europe-west1`. A database in a different provider's region is a few milliseconds
+ * away, which is the price of a Postgres that suspends itself when nobody is asking.
+ */
+const NEON_REGION = 'aws-eu-central-1';
+
+/**
+ * How far back a database can be rewound: the Free plan's maximum, stated.
+ *
+ * The provider defaults this to 24 hours, which the Free plan refuses — so a project
+ * created without it simply fails to provision. Learned the hard way in an earlier
+ * experiment, and written down here so it is not learned again.
+ */
+const NEON_HISTORY_RETENTION_SECONDS = 21600;
 
 interface AppEnvironmentArgs {
   app: App;
@@ -65,6 +89,8 @@ export class AppEnvironment extends pulumi.ComponentResource {
   readonly serviceAccount: gcp.serviceaccount.Account;
   readonly environment: service.Environment;
   readonly cloudflareToken: cloudflare.AccountToken;
+  readonly neonProject: neon.Project;
+  readonly neonKey: neon.OrgApiKey;
 
   constructor(
     { app, environment, folder }: AppEnvironmentArgs,
@@ -172,6 +198,54 @@ export class AppEnvironment extends pulumi.ComponentResource {
     );
 
     /**
+     * A database for this environment, and nothing said about what goes in it.
+     *
+     * Creating a Neon project needs organization privilege, which is why it happens
+     * here rather than in the app — it is the same act as creating the Google project
+     * above. What the app does inside it is not this stack's business: the branches,
+     * the databases, the roles and the schema are all the app's, reached through the
+     * key below.
+     *
+     * One project per environment rather than one project with a branch per
+     * environment, which is Neon's own idiom. Branches share a project's quota and its
+     * blast radius; separate projects give staging and production the isolation
+     * everything else here already has, and the Free plan allows a hundred of them.
+     */
+    this.neonProject = new neon.Project(
+      name,
+      {
+        name,
+        orgId: neonOrganization,
+        regionId: NEON_REGION,
+        historyRetentionSeconds: NEON_HISTORY_RETENTION_SECONDS,
+      },
+      parent,
+    );
+
+    /**
+     * The app's own key to that project, and the reason the app can be handed a
+     * database rather than a connection string.
+     *
+     * Scoped to this one project: Neon gives such a key Editor rights on it and
+     * nothing anywhere else — it cannot create projects, cannot mint further keys, and
+     * cannot see a sibling's. So the same argument as the image registry applies. The
+     * app administers what it was given, and this stack never learns what a counter is.
+     *
+     * One difference from the registry, and it is Neon's rather than a choice made
+     * here: a project-scoped key cannot delete its own project. Tearing one down stays
+     * this stack's job.
+     */
+    this.neonKey = new neon.OrgApiKey(
+      name,
+      {
+        name,
+        orgId: neonOrganization,
+        projectId: this.neonProject.id,
+      },
+      parent,
+    );
+
+    /**
      * The app's own Cloudflare credential, minted here so the app never sees the token
      * this stack holds. One per environment rather than per app, so revoking staging's
      * leaves production alone.
@@ -210,9 +284,19 @@ export class AppEnvironment extends pulumi.ComponentResource {
             appImages[app].registry.project,
             appImages[app].registry.location,
             appImages[app].registry.repositoryId,
+            this.neonProject.id,
+            this.neonKey.key,
           ])
           .apply(
-            ([projectId, apiToken, imageProject, imageLocation, imageRepository]) =>
+            ([
+              projectId,
+              apiToken,
+              imageProject,
+              imageLocation,
+              imageRepository,
+              neonProjectId,
+              neonKey,
+            ]) =>
               new pulumi.asset.StringAsset(`# Carries no Google Cloud credential. Anything here arrives as Pulumi configuration,
 # which overrides what a deployment mints for itself — so a login here would silently
 # demote every deployment to whichever account it named.
@@ -241,6 +325,14 @@ values:
     ${app}:imageProject: ${imageProject}
     ${app}:imageLocation: ${imageLocation}
     ${app}:imageRepository: ${imageRepository}
+    # This environment's database, as a project the app administers rather than as a
+    # connection string. The key is Editor on that one project and nothing else, so
+    # the app owns its branches, roles and schema, and this stack stays ignorant of
+    # what it stores. Assembling a connection string is the app's job, because what
+    # shape it wants one in depends on what is connecting.
+    ${app}:neonProjectId: ${neonProjectId}
+    neon:apiKey:
+      fn::secret: ${neonKey}
 `),
           ),
       },

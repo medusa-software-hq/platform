@@ -26,8 +26,15 @@ jobs:
         with:
           node-version-file: infra/.nvmrc
 
+      # `pulumi install` rather than `npm ci`, because this program depends on an SDK
+      # that does not exist until it is generated: the `packages` block in Pulumi.yaml
+      # is bridged from a Terraform provider into `sdks/`, which is not committed.
+      # `pulumi install` regenerates it and installs from the lockfile in one step.
+      - name: Install Pulumi
+        uses: pulumi/actions@v7.0.0
+
       - name: Install dependencies
-        run: npm ci
+        run: pulumi install
 
       - name: Run `oxfmt`
         run: npx --no-install oxfmt --check "**/*.ts"

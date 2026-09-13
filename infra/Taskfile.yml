@@ -16,9 +16,13 @@ tasks:
       - package-lock.json
     generates:
       - node_modules/.package-lock.json
+      - sdks/neon/package.json
     cmds:
-      # `ci` installs strictly from the lockfile
-      - npm ci
+      # `pulumi install` rather than `npm ci`: it installs strictly from the lockfile
+      # as `ci` does, and first regenerates the bridged SDK under `sdks/` that the
+      # `packages` block in Pulumi.yaml declares. That directory is not committed, so
+      # on a fresh checkout `npm ci` alone leaves `@pulumi/neon` unresolvable.
+      - pulumi install
 
   checkFormatting:
     desc: Check package formatting

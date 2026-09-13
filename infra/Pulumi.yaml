@@ -6,3 +6,16 @@ runtime:
 description: >-
   Organization-level infrastructure: the folder hierarchy, one project per app per
   environment, and the identities that let app repositories deploy into them.
+# Bridged from a Terraform provider, because Neon has no Pulumi one. `pulumi install`
+# regenerates the SDK under `sdks/`, so nothing generated is committed — the same
+# arrangement the app repositories use for their API clients.
+#
+# Both versions pinned: the first is the bridge, the second the provider it wraps. An
+# unpinned provider would let a deployment pick up a new major on its own.
+packages:
+  neon:
+    source: terraform-provider
+    version: 1.4.0
+    parameters:
+      - kislerdm/neon
+      - 0.18.0

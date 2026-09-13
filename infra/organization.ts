@@ -18,6 +18,16 @@ export const organizationAdmins = `group:gcp-organization-admins@${organizationD
 /** The GitHub organization that owns every repository this stack provisions. */
 export const githubOrganization = 'medusa-software-hq';
 
+/**
+ * The Neon organization whose projects back app databases.
+ *
+ * Written here rather than carried in the environment that holds the Neon key. It is
+ * an identifier, not a credential — it grants nothing on its own, and a reader of this
+ * program should be able to see which organization is meant without opening a secrets
+ * store. The key stays where credentials go.
+ */
+export const neonOrganization = 'org-patient-shadow-78024621';
+
 export const organization = gcp.organizations.getOrganizationOutput({
   domain: organizationDomain,
 });
