@@ -21,11 +21,15 @@ import {
   type AppEnvironmentKey,
   type Environment,
 } from './model.ts';
-import { billingAccount, githubOrganization, primaryLocation } from './organization.ts';
+import {
+  billingAccount,
+  githubOrganization,
+  neonOrganization,
+  primaryLocation,
+} from './organization.ts';
 
 const config = new pulumi.Config();
 const cloudflareAccountId = config.require('cloudflareAccountId');
-const neonOrgId = config.require('neonOrgId');
 
 /**
  * What an app may do in Cloudflare: replace the contents of a Worker, and nothing else.
@@ -211,7 +215,7 @@ export class AppEnvironment extends pulumi.ComponentResource {
       name,
       {
         name,
-        orgId: neonOrgId,
+        orgId: neonOrganization,
         regionId: NEON_REGION,
         historyRetentionSeconds: NEON_HISTORY_RETENTION_SECONDS,
       },
@@ -235,7 +239,7 @@ export class AppEnvironment extends pulumi.ComponentResource {
       name,
       {
         name,
-        orgId: neonOrgId,
+        orgId: neonOrganization,
         projectId: this.neonProject.id,
       },
       parent,
