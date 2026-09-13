@@ -234,6 +234,13 @@ export class AppEnvironment extends pulumi.ComponentResource {
      * One difference from the registry, and it is Neon's rather than a choice made
      * here: a project-scoped key cannot delete its own project. Tearing one down stays
      * this stack's job.
+     *
+     * Minting it needs more than creating the project did. Neon lets no key mint keys
+     * — an organization key is refused, with a 404 that reads like a missing endpoint —
+     * and has no service accounts, on any plan. Only a person's key can. So the
+     * credential this stack holds is the personal key of a Neon user that exists for
+     * nothing else: a member of this organization alone, with the Admin role minting
+     * requires. Anyone's own key would have carried every organization they belong to.
      */
     this.neonKey = new neon.OrgApiKey(
       name,
