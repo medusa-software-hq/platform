@@ -1,5 +1,6 @@
 import * as gcp from '@pulumi/gcp';
 import * as pulumi from '@pulumi/pulumi';
+import { smokeTestToken } from './app-access.ts';
 import { centralProject, centralServices } from './central.ts';
 import { APPS, type App } from './model.ts';
 import { githubOrganization, organizationAdmins } from './organization.ts';
@@ -152,6 +153,40 @@ new gcp.secretmanager.SecretIamMember('pulumi-deploy-token-accessor', {
 });
 
 /**
+ * The token the smoke test gets past the sign-in with, kept beside the Pulumi one.
+ *
+ * Unlike that one, its value is managed here: this stack created the token, so its secret is in
+ * this stack's state already, and a person copying it across would only be a second place for it
+ * to go wrong. Read by the same account and nothing else.
+ */
+export const smokeTestTokenSecret = new gcp.secretmanager.Secret(
+  'access-smoke-test-token',
+  {
+    project: centralProject.projectId,
+    secretId: 'access-smoke-test-token',
+    replication: { auto: {} },
+  },
+  dependsOn,
+);
+
+new gcp.secretmanager.SecretVersion('access-smoke-test-token', {
+  secret: smokeTestTokenSecret.id,
+  secretData: pulumi.secret(
+    pulumi.jsonStringify({
+      clientId: smokeTestToken.clientId,
+      clientSecret: smokeTestToken.clientSecret,
+    }),
+  ),
+});
+
+new gcp.secretmanager.SecretIamMember('access-smoke-test-token-accessor', {
+  project: centralProject.projectId,
+  secretId: smokeTestTokenSecret.secretId,
+  role: 'roles/secretmanager.secretAccessor',
+  member: deployServiceAccount.member,
+});
+
+/**
  * One binding per app, on the repository that asked.
  *
  * The pool's condition already admits nothing but the deploy workflow, so this adds
@@ -172,12 +207,14 @@ export interface DeployIdentity {
   provider: pulumi.Output<string>;
   serviceAccount: pulumi.Output<string>;
   secret: pulumi.Output<string>;
+  smokeTestSecret: pulumi.Output<string>;
 }
 
 export const deployIdentity: DeployIdentity = {
   provider: deployPoolProvider.name,
   serviceAccount: deployServiceAccount.email,
   secret: pulumi.interpolate`projects/${centralProject.projectId}/secrets/${deployTokenSecret.secretId}/versions/latest`,
+  smokeTestSecret: pulumi.interpolate`projects/${centralProject.projectId}/secrets/${smokeTestTokenSecret.secretId}/versions/latest`,
 };
 
 /** Only apps deploy this way. Referenced so the mapping is stated, not implied. */

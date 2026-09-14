@@ -26,8 +26,15 @@ const DELAY_MS = 3_000;
 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-const fetchOk = async (url: string | URL): Promise<Response> => {
-  const response = await fetch(url);
+const fetchOk = async (url: string | URL, headers: Record<string, string>): Promise<Response> => {
+  const response = await fetch(url, {
+    headers,
+
+    // Not followed. The sign-in in front of an app answers a request it will not admit by
+    // redirecting to its login page, and following that would test the login page — which
+    // answers, and is not the app.
+    redirect: 'manual',
+  });
 
   if (!response.ok) {
     throw new Error(`${url.toString()} answered ${response.status}`);
@@ -36,8 +43,8 @@ const fetchOk = async (url: string | URL): Promise<Response> => {
   return response;
 };
 
-const attempt = async (url: string): Promise<void> => {
-  const page = await fetchOk(url);
+const attempt = async (url: string, headers: Record<string, string>): Promise<void> => {
+  const page = await fetchOk(url, headers);
   const html = await page.text();
 
   if (!html.includes(ROOT_ELEMENT)) {
@@ -52,13 +59,14 @@ const attempt = async (url: string): Promise<void> => {
 
   // The page naming a bundle proves nothing about the bundle being there. Assets are
   // uploaded separately from the Worker, so this is a thing that can genuinely differ.
-  await fetchOk(new URL(source, url));
+  await fetchOk(new URL(source, url), headers);
 };
 
-export const smokeTest = async (url: string): Promise<void> => {
+/** Whether [url] serves the app, asked with [headers] — whatever gets a request past the sign-in. */
+export const smokeTest = async (url: string, headers: Record<string, string>): Promise<void> => {
   for (let remaining = ATTEMPTS; ; remaining--) {
     try {
-      await attempt(url);
+      await attempt(url, headers);
 
       return;
     } catch (cause) {

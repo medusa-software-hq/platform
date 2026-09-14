@@ -61,12 +61,15 @@ jobs:
           workload_identity_provider: ${{ vars.DEPLOY_IDENTITY_PROVIDER }}
           service_account: ${{ vars.DEPLOY_SERVICE_ACCOUNT }}
 
-      - name: Read the Pulumi token
+      # And the token the smoke test presents to the sign-in in front of every app, which
+      # admits it to the page and its files and to nothing that needs a person.
+      - name: Read the Pulumi token and the smoke test's token
         id: token
         uses: google-github-actions/get-secretmanager-secrets@v3.0.0
         with:
           secrets: |-
             pulumi:${{ vars.DEPLOY_TOKEN_SECRET }}
+            smokeTest:${{ vars.DEPLOY_SMOKE_TEST_SECRET }}
 
       # The remote automation API drives the Pulumi CLI rather than the REST API, so
       # the binary has to be here even though none of the work happens here.
@@ -80,4 +83,5 @@ jobs:
         env:
           PULUMI_ACCESS_TOKEN: ${{ steps.token.outputs.pulumi }}
           PULUMI_ORGANIZATION: ${{ vars.PULUMI_ORGANIZATION }}
+          SMOKE_TEST_ACCESS_TOKEN: ${{ steps.token.outputs.smokeTest }}
         run: node src/main.ts
