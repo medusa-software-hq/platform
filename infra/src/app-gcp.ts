@@ -1,62 +1,10 @@
 import * as gcp from '@pulumi/gcp';
 import * as pulumi from '@pulumi/pulumi';
-import { centralProject, centralServices } from './central.ts';
 import type { App } from './model.ts';
 import { githubOrganization, organizationAdmins, primaryLocation } from './organization.ts';
+import type { PlatformResources } from './platform.ts';
 
-/**
- * Where an app's images live, and what may push them.
- *
- * One registry per app, not per environment, so an image is built once and the same
- * digest is promoted from staging to production. Two registries would mean two builds
- * and no guarantee the thing tested is the thing released.
- *
- * This is the only cloud credential an app's GitHub Actions ever holds. Everything
- * else an app deploys goes through Pulumi Deployments, which federates on its own. The
- * credential is write-only, scoped to one registry: a compromised workflow can push a
- * bad image to that app and nothing more.
- */
-
-const dependsOn = { dependsOn: centralServices };
-
-/**
- * A separate pool from the one app stacks use. Different issuer, different trust —
- * and keeping them apart means a token minted for one can never satisfy the other.
- */
-export const githubPool = new gcp.iam.WorkloadIdentityPool(
-  'github-actions',
-  {
-    project: centralProject.projectId,
-    workloadIdentityPoolId: 'github-actions',
-    displayName: 'GitHub Actions',
-    description: 'Identities issued by GitHub Actions for repositories in this organization.',
-  },
-  dependsOn,
-);
-
-export const githubPoolProvider = new gcp.iam.WorkloadIdentityPoolProvider(
-  'github-actions',
-  {
-    project: centralProject.projectId,
-    workloadIdentityPoolId: githubPool.workloadIdentityPoolId,
-    workloadIdentityPoolProviderId: 'github-actions',
-    displayName: 'GitHub Actions',
-
-    attributeMapping: {
-      'google.subject': 'assertion.sub',
-      // Bound to per app below. Nothing maps the owner or the visibility: those would
-      // be grantable principals covering every repository at once.
-      'attribute.repository': 'assertion.repository',
-    },
-
-    attributeCondition: `assertion.repository_owner == '${githubOrganization}'`,
-
-    oidc: { issuerUri: 'https://token.actions.githubusercontent.com' },
-  },
-  dependsOn,
-);
-
-export interface AppImages {
+export interface AppGcpResources {
   registry: gcp.artifactregistry.Repository;
 
   /** What an image in it is called, up to the name and the tag. */
@@ -65,9 +13,27 @@ export interface AppImages {
   pushServiceAccount: gcp.serviceaccount.Account;
 }
 
-/** An app's registry, and the one identity allowed to push to it. */
-export const appImages = (app: App, options: pulumi.CustomResourceOptions): AppImages => {
-  const inCentral = { ...options, ...dependsOn };
+/**
+ * An app's Google Cloud, kept in central: where its images live, what may push them, and what
+ * lets its repository ask for a deployment.
+ *
+ * One registry per app, not per environment, so an image is built once and the same
+ * digest is promoted from staging to production. Two registries would mean two builds
+ * and no guarantee the thing tested is the thing released.
+ *
+ * The push identity is the only cloud credential an app's GitHub Actions ever holds.
+ * Everything else an app deploys goes through Pulumi Deployments, which federates on its own.
+ * The credential is write-only, scoped to one registry: a compromised workflow can push a
+ * bad image to that app and nothing more.
+ */
+export const provisionAppGcpResources = (
+  { app, platform }: { app: App; platform: PlatformResources },
+  options: pulumi.CustomResourceOptions,
+): AppGcpResources => {
+  const { centralProject, centralServices, githubActionsPool, deployPool, deployServiceAccount } =
+    platform.gcp;
+
+  const inCentral = { ...options, dependsOn: centralServices };
 
   const registry = new gcp.artifactregistry.Repository(
     app,
@@ -139,7 +105,25 @@ export const appImages = (app: App, options: pulumi.CustomResourceOptions): AppI
     {
       serviceAccountId: pushServiceAccount.name,
       role: 'roles/iam.workloadIdentityUser',
-      member: pulumi.interpolate`principalSet://iam.googleapis.com/${githubPool.name}/attribute.repository/${githubOrganization}/${app}`,
+      member: pulumi.interpolate`principalSet://iam.googleapis.com/${githubActionsPool.name}/attribute.repository/${githubOrganization}/${app}`,
+    },
+    options,
+  );
+
+  /**
+   * The deploy workflow, bound to this app's repository.
+   *
+   * The pool's condition already admits nothing but the deploy workflow, so this adds
+   * the other half: which repositories may call it at all. A repository that is not an
+   * app of this organization gets no identity even if it copies the workflow reference
+   * exactly.
+   */
+  new gcp.serviceaccount.IAMMember(
+    `${app}-deploy-workload-identity`,
+    {
+      serviceAccountId: deployServiceAccount.name,
+      role: 'roles/iam.workloadIdentityUser',
+      member: pulumi.interpolate`principalSet://iam.googleapis.com/${deployPool.name}/attribute.repository/${githubOrganization}/${app}`,
     },
     options,
   );
