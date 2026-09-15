@@ -1,6 +1,6 @@
 import * as gcp from '@pulumi/gcp';
 import * as pulumi from '@pulumi/pulumi';
-import { byAppEnvironment, byEnvironment, type AppEnvironmentKey } from './model.ts';
+import { byEnvironment, type AppEnvironmentPair } from './model.ts';
 
 /**
  * The folder hierarchy.
@@ -34,8 +34,12 @@ const adopt = (name: string): pulumi.CustomResourceOptions => {
   return id === undefined ? {} : { import: id };
 };
 
-const folder = (name: string, displayName: string, parent: pulumi.Input<string>) =>
-  new gcp.organizations.Folder(name, { displayName, parent }, adopt(name));
+const folder = (
+  name: string,
+  displayName: string,
+  parent: pulumi.Input<string>,
+  options: pulumi.CustomResourceOptions = {},
+) => new gcp.organizations.Folder(name, { displayName, parent }, { ...options, ...adopt(name) });
 
 /** Holds the central project: shared state and registries, nothing app-specific. */
 export const sharedFolder = folder('shared', 'shared', delegationFolder);
@@ -55,6 +59,7 @@ const appsFolders = byEnvironment((environment) =>
  * One folder per app per environment. This is the unit delegated to an app: it holds
  * that app's project, and an app may create further projects of its own beside it.
  */
-export const appFolders: Record<AppEnvironmentKey, gcp.organizations.Folder> = byAppEnvironment(
-  ({ app, environment, key }) => folder(key, app, appsFolders[environment].name),
-);
+export const appFolder = (
+  { app, environment, key }: AppEnvironmentPair,
+  options: pulumi.CustomResourceOptions,
+): gcp.organizations.Folder => folder(key, app, appsFolders[environment].name, options);

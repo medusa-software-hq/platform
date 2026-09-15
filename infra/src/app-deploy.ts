@@ -194,13 +194,19 @@ new gcp.secretmanager.SecretIamMember('access-smoke-test-token-accessor', {
  * app of this organization gets no identity even if it copies the workflow reference
  * exactly.
  */
-for (const app of APPS) {
-  new gcp.serviceaccount.IAMMember(`${app}-deploy-workload-identity`, {
-    serviceAccountId: deployServiceAccount.name,
-    role: 'roles/iam.workloadIdentityUser',
-    member: pulumi.interpolate`principalSet://iam.googleapis.com/${deployPool.name}/attribute.repository/${githubOrganization}/${app}`,
-  });
-}
+export const appDeployBinding = (
+  app: App,
+  options: pulumi.CustomResourceOptions,
+): gcp.serviceaccount.IAMMember =>
+  new gcp.serviceaccount.IAMMember(
+    `${app}-deploy-workload-identity`,
+    {
+      serviceAccountId: deployServiceAccount.name,
+      role: 'roles/iam.workloadIdentityUser',
+      member: pulumi.interpolate`principalSet://iam.googleapis.com/${deployPool.name}/attribute.repository/${githubOrganization}/${app}`,
+    },
+    options,
+  );
 
 /** What an app's workflow needs in order to ask for that identity. */
 export interface DeployIdentity {

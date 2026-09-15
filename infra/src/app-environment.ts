@@ -4,7 +4,8 @@ import * as neon from '@pulumi/neon';
 import * as pulumi from '@pulumi/pulumi';
 import * as service from '@pulumi/pulumiservice';
 import * as random from '@pulumi/random';
-import { accessIssuer, accessKeysUrl, appAccessApplications } from './app-access.ts';
+import { accessIssuer, accessKeysUrl, appAccess, type AppAccess } from './app-access.ts';
+import { appHostname, type AppHostname } from './app-hostname.ts';
 import {
   appPool,
   appPoolProvider,
@@ -12,16 +13,17 @@ import {
   deploySubject,
   pulumiOrganization,
 } from './app-identity.ts';
-import { appImages } from './app-images.ts';
+import type { AppImages } from './app-images.ts';
 import { centralProject, centralServices } from './central.ts';
-import { appFolders } from './folders.ts';
+import { appFolder } from './folders.ts';
 import {
-  byAppEnvironment,
+  appEnvironmentKey,
   ENVIRONMENT_SHORT_NAMES,
   type App,
   type AppEnvironmentKey,
   type Environment,
 } from './model.ts';
+import { movedFromStackRoot } from './moved.ts';
 import {
   billingAccount,
   githubOrganization,
@@ -67,9 +69,8 @@ const NEON_HISTORY_RETENTION_SECONDS = 21600;
 interface AppEnvironmentArgs {
   app: App;
   environment: Environment;
-  folder: gcp.organizations.Folder;
-  /** Who may reach this environment, whose audience its tokens carry. */
-  access: cloudflare.ZeroTrustAccessApplication;
+  /** The app's image registry, which every environment of the app pulls from. */
+  images: AppImages;
 }
 
 /**
@@ -88,6 +89,10 @@ interface AppEnvironmentArgs {
  * sets above these folders, which nothing here can override.
  */
 export class AppEnvironment extends pulumi.ComponentResource {
+  readonly key: AppEnvironmentKey;
+  readonly folder: gcp.organizations.Folder;
+  readonly hostname: AppHostname;
+  readonly access: AppAccess;
   readonly project: gcp.organizations.Project;
   readonly serviceAccount: gcp.serviceaccount.Account;
   readonly environment: service.Environment;
@@ -96,13 +101,24 @@ export class AppEnvironment extends pulumi.ComponentResource {
   readonly neonKey: neon.OrgApiKey;
 
   constructor(
-    { app, environment, folder, access }: AppEnvironmentArgs,
+    { app, environment, images }: AppEnvironmentArgs,
     options?: pulumi.ComponentResourceOptions,
   ) {
-    const name = `${app}-${environment}`;
+    const name = appEnvironmentKey(app, environment);
     super('medusa:platform:AppEnvironment', name, {}, options);
 
+    this.key = name;
+
     const parent = { parent: this };
+
+    // Created at the top of the stack before this component held them, hence the aliases.
+    // Everything else below was already this component's, and moves with it.
+    const moved = { parent: this, ...movedFromStackRoot };
+    const pair = { app, environment, key: name };
+
+    this.folder = appFolder(pair, moved);
+    this.hostname = appHostname(pair, moved);
+    this.access = appAccess(pair, moved);
 
     const suffix = new random.RandomId(`${name}-project-suffix`, { byteLength: 2 }, parent);
 
@@ -115,7 +131,7 @@ export class AppEnvironment extends pulumi.ComponentResource {
         projectId: suffix.hex.apply(
           (hex) => `ms-${app}-${ENVIRONMENT_SHORT_NAMES[environment]}-${hex}`,
         ),
-        folderId: folder.folderId,
+        folderId: this.folder.folderId,
         billingAccount: billingAccount.id,
 
         // Exploration phase: `destroy` should actually destroy.
@@ -192,8 +208,8 @@ export class AppEnvironment extends pulumi.ComponentResource {
       `${name}-registry-admin`,
       {
         project: centralProject.projectId,
-        location: appImages[app].registry.location,
-        repository: appImages[app].registry.name,
+        location: images.registry.location,
+        repository: images.registry.name,
         role: 'roles/artifactregistry.admin',
         member: this.serviceAccount.member,
       },
@@ -291,12 +307,12 @@ export class AppEnvironment extends pulumi.ComponentResource {
           .all([
             this.project.projectId,
             this.cloudflareToken.value,
-            appImages[app].registry.project,
-            appImages[app].registry.location,
-            appImages[app].registry.repositoryId,
+            images.registry.project,
+            images.registry.location,
+            images.registry.repositoryId,
             this.neonProject.id,
             this.neonKey.key,
-            access.aud,
+            this.access.application.aud,
           ])
           .apply(
             ([
@@ -433,13 +449,3 @@ values:
     });
   }
 }
-
-export const appEnvironments: Record<AppEnvironmentKey, AppEnvironment> = byAppEnvironment(
-  ({ app, environment, key }) =>
-    new AppEnvironment({
-      app,
-      environment,
-      folder: appFolders[key],
-      access: appAccessApplications[key],
-    }),
-);

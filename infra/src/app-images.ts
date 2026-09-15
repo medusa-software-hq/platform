@@ -1,7 +1,7 @@
 import * as gcp from '@pulumi/gcp';
 import * as pulumi from '@pulumi/pulumi';
 import { centralProject, centralServices } from './central.ts';
-import { APPS, type App } from './model.ts';
+import type { App } from './model.ts';
 import { githubOrganization, organizationAdmins, primaryLocation } from './organization.ts';
 
 /**
@@ -65,7 +65,10 @@ export interface AppImages {
   pushServiceAccount: gcp.serviceaccount.Account;
 }
 
-const forApp = (app: App): AppImages => {
+/** An app's registry, and the one identity allowed to push to it. */
+export const appImages = (app: App, options: pulumi.CustomResourceOptions): AppImages => {
+  const inCentral = { ...options, ...dependsOn };
+
   const registry = new gcp.artifactregistry.Repository(
     app,
     {
@@ -79,7 +82,7 @@ const forApp = (app: App): AppImages => {
       // replace the image a release is about to pull, under the tag it already trusts.
       dockerConfig: { immutableTags: true },
     },
-    dependsOn,
+    inCentral,
   );
 
   const pushServiceAccount = new gcp.serviceaccount.Account(
@@ -90,16 +93,20 @@ const forApp = (app: App): AppImages => {
       displayName: `${app} - push`,
       description: `Pushes ${app} images from GitHub Actions.`,
     },
-    dependsOn,
+    inCentral,
   );
 
-  new gcp.artifactregistry.RepositoryIamMember(`${app}-push-writer`, {
-    project: centralProject.projectId,
-    location: registry.location,
-    repository: registry.name,
-    role: 'roles/artifactregistry.writer',
-    member: pushServiceAccount.member,
-  });
+  new gcp.artifactregistry.RepositoryIamMember(
+    `${app}-push-writer`,
+    {
+      project: centralProject.projectId,
+      location: registry.location,
+      repository: registry.name,
+      role: 'roles/artifactregistry.writer',
+      member: pushServiceAccount.member,
+    },
+    options,
+  );
 
   /**
    * Readable by whoever administers the organization.
@@ -113,21 +120,29 @@ const forApp = (app: App): AppImages => {
    * merge, and a person reaching past that would be making the registry disagree with
    * the repository.
    */
-  new gcp.artifactregistry.RepositoryIamMember(`${app}-registry-reader`, {
-    project: centralProject.projectId,
-    location: registry.location,
-    repository: registry.name,
-    role: 'roles/artifactregistry.reader',
-    member: organizationAdmins,
-  });
+  new gcp.artifactregistry.RepositoryIamMember(
+    `${app}-registry-reader`,
+    {
+      project: centralProject.projectId,
+      location: registry.location,
+      repository: registry.name,
+      role: 'roles/artifactregistry.reader',
+      member: organizationAdmins,
+    },
+    options,
+  );
 
   // Impersonation, rather than granting the federated principal directly: pushing an
   // image needs an OAuth access token, and those are only issued for a service account.
-  new gcp.serviceaccount.IAMMember(`${app}-push-workload-identity`, {
-    serviceAccountId: pushServiceAccount.name,
-    role: 'roles/iam.workloadIdentityUser',
-    member: pulumi.interpolate`principalSet://iam.googleapis.com/${githubPool.name}/attribute.repository/${githubOrganization}/${app}`,
-  });
+  new gcp.serviceaccount.IAMMember(
+    `${app}-push-workload-identity`,
+    {
+      serviceAccountId: pushServiceAccount.name,
+      role: 'roles/iam.workloadIdentityUser',
+      member: pulumi.interpolate`principalSet://iam.googleapis.com/${githubPool.name}/attribute.repository/${githubOrganization}/${app}`,
+    },
+    options,
+  );
 
   return {
     registry,
@@ -135,7 +150,3 @@ const forApp = (app: App): AppImages => {
     pushServiceAccount,
   };
 };
-
-export const appImages: Record<App, AppImages> = Object.fromEntries(
-  APPS.map((app) => [app, forApp(app)]),
-) as Record<App, AppImages>;

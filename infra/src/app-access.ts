@@ -1,6 +1,6 @@
 import * as cloudflare from '@pulumi/cloudflare';
 import * as pulumi from '@pulumi/pulumi';
-import { byAppEnvironment, hostnameFor } from './model.ts';
+import { hostnameFor, type AppEnvironmentPair } from './model.ts';
 import {
   accessIdentityProviderClientId,
   accessTeamDomain,
@@ -122,7 +122,16 @@ const deploySmokeTest = new cloudflare.ZeroTrustAccessPolicy('deploy-smoke-test'
  * Each has its own audience, which is what keeps a token issued for staging from being
  * accepted by production: the sign-in is shared, the tokens are not.
  */
-export const appAccessApplications = byAppEnvironment((pair) => {
+export interface AppAccess {
+  /** The Access application for the environment's whole hostname, whose audience its tokens carry. */
+  readonly application: cloudflare.ZeroTrustAccessApplication;
+}
+
+/** Who may reach an app environment: the organization, and webhook senders on their one path. */
+export const appAccess = (
+  pair: AppEnvironmentPair,
+  options: pulumi.CustomResourceOptions,
+): AppAccess => {
   const hostname = hostnameFor(pair);
 
   /**
@@ -133,30 +142,40 @@ export const appAccessApplications = byAppEnvironment((pair) => {
    * alone decide — nothing is inherited from the broader one. Both spellings, because a
    * wildcard in a path does not cover the path it sits under.
    */
-  new cloudflare.ZeroTrustAccessApplication(`${pair.key}-webhooks`, {
-    accountId,
-    name: `${pair.key} webhooks`,
-    type: 'self_hosted',
-    destinations: [
-      { type: 'public', uri: `${hostname}${WEBHOOKS_PATH}` },
-      { type: 'public', uri: `${hostname}${WEBHOOKS_PATH}/*` },
-    ],
-    policies: [{ id: webhookSenders.id, precedence: 1 }],
-  });
+  new cloudflare.ZeroTrustAccessApplication(
+    `${pair.key}-webhooks`,
+    {
+      accountId,
+      name: `${pair.key} webhooks`,
+      type: 'self_hosted',
+      destinations: [
+        { type: 'public', uri: `${hostname}${WEBHOOKS_PATH}` },
+        { type: 'public', uri: `${hostname}${WEBHOOKS_PATH}/*` },
+      ],
+      policies: [{ id: webhookSenders.id, precedence: 1 }],
+    },
+    options,
+  );
 
-  return new cloudflare.ZeroTrustAccessApplication(pair.key, {
-    accountId,
-    name: pair.key,
-    type: 'self_hosted',
-    destinations: [{ type: 'public', uri: hostname }],
-    allowedIdps: [identityProvider.id],
+  const application = new cloudflare.ZeroTrustAccessApplication(
+    pair.key,
+    {
+      accountId,
+      name: pair.key,
+      type: 'self_hosted',
+      destinations: [{ type: 'public', uri: hostname }],
+      allowedIdps: [identityProvider.id],
 
-    // There is one way to sign in, so there is nothing to choose between.
-    autoRedirectToIdentity: true,
+      // There is one way to sign in, so there is nothing to choose between.
+      autoRedirectToIdentity: true,
 
-    policies: [
-      { id: organizationMembers.id, precedence: 1 },
-      { id: deploySmokeTest.id, precedence: 2 },
-    ],
-  });
-});
+      policies: [
+        { id: organizationMembers.id, precedence: 1 },
+        { id: deploySmokeTest.id, precedence: 2 },
+      ],
+    },
+    options,
+  );
+
+  return { application };
+};

@@ -1,6 +1,6 @@
 import * as cloudflare from '@pulumi/cloudflare';
 import * as pulumi from '@pulumi/pulumi';
-import { byAppEnvironment, hostnameFor } from './model.ts';
+import { hostnameFor, type AppEnvironmentPair } from './model.ts';
 import { organizationDomain } from './organization.ts';
 
 /**
@@ -56,7 +56,19 @@ const placeholder = (hostname: string): string =>
 };
 `;
 
-export const appScripts = byAppEnvironment((pair) => {
+export interface AppHostname {
+  /** Where the environment answers. */
+  readonly hostname: string;
+
+  /** The Worker that answers there, holding a placeholder until the app deploys over it. */
+  readonly script: cloudflare.WorkersScript;
+}
+
+/** An app environment's hostname, and the Worker it reaches. */
+export const appHostname = (
+  pair: AppEnvironmentPair,
+  options: pulumi.CustomResourceOptions,
+): AppHostname => {
   const hostname = hostnameFor(pair);
 
   const script = new cloudflare.WorkersScript(
@@ -68,7 +80,7 @@ export const appScripts = byAppEnvironment((pair) => {
       compatibilityDate: '2026-09-01',
       content: placeholder(hostname),
     },
-    { ignoreChanges: REPLACED_BY_THE_APP },
+    { ...options, ignoreChanges: REPLACED_BY_THE_APP },
   );
 
   /**
@@ -78,25 +90,30 @@ export const appScripts = byAppEnvironment((pair) => {
    * preview address per version, and neither is a hostname Access was told about — a
    * request there would reach the app with nobody signed in. So neither exists.
    */
-  new cloudflare.WorkersScriptSubdomain(pair.key, {
-    accountId,
-    scriptName: script.scriptName,
-    enabled: false,
-    previewsEnabled: false,
-  });
+  new cloudflare.WorkersScriptSubdomain(
+    pair.key,
+    {
+      accountId,
+      scriptName: script.scriptName,
+      enabled: false,
+      previewsEnabled: false,
+    },
+    options,
+  );
 
   // `service` is taken from the script rather than repeating its name, so the
   // dependency exists. With a bare string Pulumi sees no edge, creates both at once,
   // and Cloudflare rejects a domain for a Worker that does not exist yet.
-  new cloudflare.WorkersCustomDomain(pair.key, {
-    accountId,
-    hostname,
-    service: script.scriptName,
-    zoneName: organizationDomain,
-  });
+  new cloudflare.WorkersCustomDomain(
+    pair.key,
+    {
+      accountId,
+      hostname,
+      service: script.scriptName,
+      zoneName: organizationDomain,
+    },
+    options,
+  );
 
-  return script;
-});
-
-/** Where each app environment answers, for the app repositories to be told. */
-export const appHostnames = byAppEnvironment(hostnameFor);
+  return { hostname, script };
+};
