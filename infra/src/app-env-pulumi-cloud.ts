@@ -9,6 +9,7 @@ import type { AppEnvironmentPair } from './model.ts';
 import { githubOrganization, primaryLocation } from './organization.ts';
 import { accessIssuer, accessKeysUrl } from './platform-cloudflare.ts';
 import type { PlatformResources } from './platform.ts';
+import { yamlAsset } from './yaml-asset.ts';
 
 /**
  * An app environment in Pulumi Cloud: the ESC environment that hands the app everything made for
@@ -39,81 +40,64 @@ export const provisionAppEnvPulumiCloudResources = (
   const { app, environment, key: name } = pair;
   const { centralProject, appStacksPool, appStacksPoolProvider } = platform.gcp;
 
-  // No blank lines inside this document. ESC strips them when it saves, so one here
-  // makes every plan report a change to an environment nobody touched.
   new service.Environment(
     name,
     {
       organization: pulumiOrganization,
       project: app,
       name: environment,
-      yaml: pulumi
-        .all([
-          gcp.project.projectId,
-          cloudflare.apiToken.value,
-          appGcp.registry.project,
-          appGcp.registry.location,
-          appGcp.registry.repositoryId,
-          neon.project.id,
-          neon.apiKey.key,
-          cloudflare.accessApplication.aud,
-        ])
-        .apply(
-          ([
-            projectId,
-            apiToken,
-            imageProject,
-            imageLocation,
-            imageRepository,
-            neonProjectId,
-            neonKey,
-            authAudience,
-          ]) =>
-            new pulumi.asset.StringAsset(`# Carries no Google Cloud credential. Anything here arrives as Pulumi configuration,
-# which overrides what a deployment mints for itself — so a login here would silently
-# demote every deployment to whichever account it named.
-values:
-  pulumiConfig:
-    # Where this environment's resources belong. Passed down because the identifier is
-    # generated here — an app repeating it would be a second copy free to drift.
-    gcp:project: ${projectId}
-    # Minted for this environment alone, and narrower than the token that minted it: it
-    # may replace Worker contents and holds no zone permission of any kind.
-    cloudflare:apiToken:
-      fn::secret: ${apiToken}
-    # The Worker this environment's contents belong to. Its hostname and custom domain
-    # are the platform stack's business; only what it returns is the app's.
-    ${app}:workerName: ${name}
-    ${app}:cloudflareAccountId: ${cloudflareAccountId}
-    # Where regional resources belong. One region for everything, so a service and
-    # the registry it pulls from are never accidentally an ocean apart.
-    gcp:region: ${primaryLocation}
-    # Where this app's images live, in the three parts a registry actually has.
-    # Passed down because they belong to a project the app cannot see — and passed
-    # apart rather than joined, so that whatever needs them can put them together the
-    # way its own API asks for them. Naming a registry to IAM and naming one to
-    # Docker are different shapes of one fact, and neither is the other's substring
-    # by luck.
-    ${app}:imageProject: ${imageProject}
-    ${app}:imageLocation: ${imageLocation}
-    ${app}:imageRepository: ${imageRepository}
-    # This environment's database, as a project the app administers rather than as a
-    # connection string. The key is Editor on that one project and nothing else, so
-    # the app owns its branches, roles and schema, and this stack stays ignorant of
-    # what it stores. Assembling a connection string is the app's job, because what
-    # shape it wants one in depends on what is connecting.
-    ${app}:neonProjectId: ${neonProjectId}
-    neon:apiKey:
-      fn::secret: ${neonKey}
-    # Who this environment's callers are, in what checking them takes rather than in
-    # which product signs them in: who issues their tokens, where the keys signing those
-    # are published, and which tokens are meant for this environment. None of it is a
-    # credential; each only says what a valid one looks like.
-    ${app}:authIssuer: ${accessIssuer}
-    ${app}:authKeysUrl: ${accessKeysUrl}
-    ${app}:authAudience: ${authAudience}
-`),
-        ),
+      /**
+       * Carries no Google Cloud credential. Anything here arrives as Pulumi configuration, which
+       * overrides what a deployment mints for itself — so a login here would silently demote every
+       * deployment to whichever account it named.
+       */
+      yaml: yamlAsset({
+        values: {
+          pulumiConfig: {
+            // Where this environment's resources belong. Passed down because the identifier is
+            // generated here — an app repeating it would be a second copy free to drift.
+            'gcp:project': gcp.project.projectId,
+
+            // Minted for this environment alone, and narrower than the token that minted it: it
+            // may replace Worker contents and holds no zone permission of any kind.
+            'cloudflare:apiToken': { 'fn::secret': cloudflare.apiToken.value },
+
+            // The Worker this environment's contents belong to. Its hostname and custom domain
+            // are the platform stack's business; only what it returns is the app's.
+            [`${app}:workerName`]: name,
+            [`${app}:cloudflareAccountId`]: cloudflareAccountId,
+
+            // Where regional resources belong. One region for everything, so a service and the
+            // registry it pulls from are never accidentally an ocean apart.
+            'gcp:region': primaryLocation,
+
+            // Where this app's images live, in the three parts a registry actually has. Passed
+            // down because they belong to a project the app cannot see — and passed apart rather
+            // than joined, so that whatever needs them can put them together the way its own API
+            // asks for them. Naming a registry to IAM and naming one to Docker are different
+            // shapes of one fact, and neither is the other's substring by luck.
+            [`${app}:imageProject`]: appGcp.registry.project,
+            [`${app}:imageLocation`]: appGcp.registry.location,
+            [`${app}:imageRepository`]: appGcp.registry.repositoryId,
+
+            // This environment's database, as a project the app administers rather than as a
+            // connection string. The key is Editor on that one project and nothing else, so the
+            // app owns its branches, roles and schema, and this stack stays ignorant of what it
+            // stores. Assembling a connection string is the app's job, because what shape it
+            // wants one in depends on what is connecting.
+            [`${app}:neonProjectId`]: neon.project.id,
+            'neon:apiKey': { 'fn::secret': neon.apiKey.key },
+
+            // Who this environment's callers are, in what checking them takes rather than in which
+            // product signs them in: who issues their tokens, where the keys signing those are
+            // published, and which tokens are meant for this environment. None of it is a
+            // credential; each only says what a valid one looks like.
+            [`${app}:authIssuer`]: accessIssuer,
+            [`${app}:authKeysUrl`]: accessKeysUrl,
+            [`${app}:authAudience`]: cloudflare.accessApplication.aud,
+          },
+        },
+      }),
     },
     options,
   );
