@@ -1,62 +1,16 @@
-import * as pulumi from '@pulumi/pulumi';
-import { deployIdentity } from './app-deploy.ts';
-import { appEnvironments } from './app-environment.ts';
-import { appHostnames } from './app-hostname.ts';
-import { appImages, githubPoolProvider } from './app-images.ts';
-import { appRepositories } from './app-repository.ts';
-import { centralProject } from './central.ts';
-import { appFolders, sharedFolder } from './folders.ts';
-import { billingAccount, organization } from './organization.ts';
+import { AppComponent } from './app.ts';
+import { APPS } from './model.ts';
 
-export const organizationId = organization.orgId;
-export const billingAccountId = billingAccount.id;
-
-export const sharedFolderId = sharedFolder.folderId;
-export const centralProjectId = centralProject.projectId;
-
-export const appFolderIds = Object.fromEntries(
-  Object.entries(appFolders).map(([key, folder]) => [key, folder.folderId]),
-);
-
-export const appProjectIds = Object.fromEntries(
-  Object.entries(appEnvironments).map(([key, appEnvironment]) => [
-    key,
-    appEnvironment.project.projectId,
-  ]),
-);
-
-export const appServiceAccountEmails = Object.fromEntries(
-  Object.entries(appEnvironments).map(([key, appEnvironment]) => [
-    key,
-    appEnvironment.serviceAccount.email,
-  ]),
-);
-
-//region Handed to app repositories, for pushing images
-
-export const imagePushProvider = githubPoolProvider.name;
-
-export const imageRegistries = Object.fromEntries(
-  Object.entries(appImages).map(([app, images]) => [
-    app,
-    pulumi.interpolate`${images.registry.location}-docker.pkg.dev/${centralProject.projectId}/${images.registry.repositoryId}`,
-  ]),
-);
-
-export const imagePushServiceAccountEmails = Object.fromEntries(
-  Object.entries(appImages).map(([app, images]) => [app, images.pushServiceAccount.email]),
-);
-
-//endregion
-
-export const appRepositoryNames = Object.fromEntries(
-  Object.entries(appRepositories).map(([app, repository]) => [app, repository.fullName]),
-);
-
-/** Where each app environment is served. */
-export const appHostnameUrls = Object.fromEntries(
-  Object.entries(appHostnames).map(([key, hostname]) => [key, `https://${hostname}`]),
-);
-
-/** What an app's deploy workflow federates with, and where the token it reads lives. */
-export const deployWorkloadIdentity = deployIdentity;
+/**
+ * The platform: every app, each with its environments.
+ *
+ * What exists once whatever the app — the folder tree, the central project, the identity pools,
+ * the sign-in — is created by the modules those components are built from.
+ *
+ * Nothing is exported. No other stack or program reads this one's outputs: an app is told what it
+ * needs through its ESC environment and its repository's variables, and the deploy workflow reads
+ * the model directly.
+ */
+for (const app of APPS) {
+  new AppComponent(app);
+}

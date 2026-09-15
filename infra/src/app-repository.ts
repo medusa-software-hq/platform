@@ -2,8 +2,8 @@ import * as github from '@pulumi/github';
 import * as pulumi from '@pulumi/pulumi';
 import { deployIdentity } from './app-deploy.ts';
 import { pulumiOrganization } from './app-identity.ts';
-import { appImages, githubPoolProvider } from './app-images.ts';
-import { APPS, type App } from './model.ts';
+import { githubPoolProvider, type AppImages } from './app-images.ts';
+import type { App } from './model.ts';
 import { githubOrganization } from './organization.ts';
 
 /**
@@ -52,25 +52,30 @@ const CONFIGURED_ELSEWHERE = [
   'deleteBranchOnMerge',
 ];
 
-const forApp = (app: App): github.Repository => {
+/** An app's repository, told where its images go and how its deployments are asked for. */
+export const appRepository = (
+  app: App,
+  images: AppImages,
+  options: pulumi.CustomResourceOptions,
+): github.Repository => {
+  const onGithub = { ...options, provider: githubProvider };
+
   const repository = new github.Repository(
     app,
     { name: app },
     {
-      provider: githubProvider,
+      ...onGithub,
       ignoreChanges: CONFIGURED_ELSEWHERE,
       // Repositories predating this stack are adopted rather than recreated.
       import: app,
     },
   );
 
-  const images = appImages[app];
-
   const variable = (name: string, value: pulumi.Input<string>): github.ActionsVariable =>
     new github.ActionsVariable(
       `${app}-${name}`,
       { repository: repository.name, variableName: name, value },
-      { provider: githubProvider },
+      onGithub,
     );
 
   variable('IMAGE_REGISTRY', images.path);
@@ -93,7 +98,3 @@ const forApp = (app: App): github.Repository => {
 
   return repository;
 };
-
-export const appRepositories: Record<App, github.Repository> = Object.fromEntries(
-  APPS.map((app) => [app, forApp(app)]),
-) as Record<App, github.Repository>;

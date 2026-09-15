@@ -2,7 +2,7 @@ import * as gcp from '@pulumi/gcp';
 import * as pulumi from '@pulumi/pulumi';
 import { smokeTestToken } from './app-access.ts';
 import { centralProject, centralServices } from './central.ts';
-import { APPS, type App } from './model.ts';
+import type { App } from './model.ts';
 import { githubOrganization, organizationAdmins } from './organization.ts';
 
 /**
@@ -194,13 +194,19 @@ new gcp.secretmanager.SecretIamMember('access-smoke-test-token-accessor', {
  * app of this organization gets no identity even if it copies the workflow reference
  * exactly.
  */
-for (const app of APPS) {
-  new gcp.serviceaccount.IAMMember(`${app}-deploy-workload-identity`, {
-    serviceAccountId: deployServiceAccount.name,
-    role: 'roles/iam.workloadIdentityUser',
-    member: pulumi.interpolate`principalSet://iam.googleapis.com/${deployPool.name}/attribute.repository/${githubOrganization}/${app}`,
-  });
-}
+export const appDeployBinding = (
+  app: App,
+  options: pulumi.CustomResourceOptions,
+): gcp.serviceaccount.IAMMember =>
+  new gcp.serviceaccount.IAMMember(
+    `${app}-deploy-workload-identity`,
+    {
+      serviceAccountId: deployServiceAccount.name,
+      role: 'roles/iam.workloadIdentityUser',
+      member: pulumi.interpolate`principalSet://iam.googleapis.com/${deployPool.name}/attribute.repository/${githubOrganization}/${app}`,
+    },
+    options,
+  );
 
 /** What an app's workflow needs in order to ask for that identity. */
 export interface DeployIdentity {
@@ -216,6 +222,3 @@ export const deployIdentity: DeployIdentity = {
   secret: pulumi.interpolate`projects/${centralProject.projectId}/secrets/${deployTokenSecret.secretId}/versions/latest`,
   smokeTestSecret: pulumi.interpolate`projects/${centralProject.projectId}/secrets/${smokeTestTokenSecret.secretId}/versions/latest`,
 };
-
-/** Only apps deploy this way. Referenced so the mapping is stated, not implied. */
-export const deployableApps: readonly App[] = APPS;
