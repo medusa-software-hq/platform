@@ -3,6 +3,8 @@ runtime:
   name: nodejs
   options:
     packagemanager: npm
+# The program lives in `src/`, beside the configuration it is run with rather than among it.
+main: src/index.ts
 description: >-
   Organization-level infrastructure: the folder hierarchy, one project per app per
   environment, and the identities that let app repositories deploy into them.
