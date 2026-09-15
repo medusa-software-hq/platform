@@ -1,6 +1,6 @@
 import * as gcp from '@pulumi/gcp';
 import * as pulumi from '@pulumi/pulumi';
-import { byEnvironment, type AppEnvironmentPair } from './model.ts';
+import type { AppEnvironmentPair, Environment } from './model.ts';
 
 /**
  * The folder hierarchy.
@@ -46,14 +46,21 @@ export const sharedFolder = folder('shared', 'shared', delegationFolder);
 
 const environmentsFolder = folder('environments', 'environments', delegationFolder);
 
-const environmentFolders = byEnvironment((environment) =>
-  folder(environment, environment, environmentsFolder.name),
-);
+/**
+ * An environment's folder, and the `apps` folder inside it, which is where app folders go. Room is
+ * left beside `apps` for anything that is environment-scoped but not an app.
+ */
+const environmentAppsFolder = (environment: Environment): gcp.organizations.Folder => {
+  const environmentFolder = folder(environment, environment, environmentsFolder.name);
 
-/** Leaves room beside `apps` for anything that is environment-scoped but not an app. */
-const appsFolders = byEnvironment((environment) =>
-  folder(`${environment}-apps`, 'apps', environmentFolders[environment].name),
-);
+  return folder(`${environment}-apps`, 'apps', environmentFolder.name);
+};
+
+/** Written out rather than iterated, and typed so an environment added to the model is missed loudly. */
+const appsFolders: Readonly<Record<Environment, gcp.organizations.Folder>> = {
+  production: environmentAppsFolder('production'),
+  staging: environmentAppsFolder('staging'),
+};
 
 /**
  * One folder per app per environment. This is the unit delegated to an app: it holds

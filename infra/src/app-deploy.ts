@@ -2,7 +2,7 @@ import * as gcp from '@pulumi/gcp';
 import * as pulumi from '@pulumi/pulumi';
 import { smokeTestToken } from './app-access.ts';
 import { centralProject, centralServices } from './central.ts';
-import { APPS, type App } from './model.ts';
+import type { App } from './model.ts';
 import { githubOrganization, organizationAdmins } from './organization.ts';
 
 /**
@@ -222,6 +222,3 @@ export const deployIdentity: DeployIdentity = {
   secret: pulumi.interpolate`projects/${centralProject.projectId}/secrets/${deployTokenSecret.secretId}/versions/latest`,
   smokeTestSecret: pulumi.interpolate`projects/${centralProject.projectId}/secrets/${smokeTestTokenSecret.secretId}/versions/latest`,
 };
-
-/** Only apps deploy this way. Referenced so the mapping is stated, not implied. */
-export const deployableApps: readonly App[] = APPS;

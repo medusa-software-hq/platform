@@ -4,8 +4,8 @@ import * as neon from '@pulumi/neon';
 import * as pulumi from '@pulumi/pulumi';
 import * as service from '@pulumi/pulumiservice';
 import * as random from '@pulumi/random';
-import { accessIssuer, accessKeysUrl, appAccess, type AppAccess } from './app-access.ts';
-import { appHostname, type AppHostname } from './app-hostname.ts';
+import { accessIssuer, accessKeysUrl, appAccess } from './app-access.ts';
+import { appHostname } from './app-hostname.ts';
 import {
   appPool,
   appPoolProvider,
@@ -16,13 +16,7 @@ import {
 import type { AppImages } from './app-images.ts';
 import { centralProject, centralServices } from './central.ts';
 import { appFolder } from './folders.ts';
-import {
-  appEnvironmentKey,
-  ENVIRONMENT_SHORT_NAMES,
-  type App,
-  type AppEnvironmentKey,
-  type Environment,
-} from './model.ts';
+import { appEnvironmentKey, ENVIRONMENT_SHORT_NAMES, type App, type Environment } from './model.ts';
 import { movedFromStackRoot } from './moved.ts';
 import {
   billingAccount,
@@ -89,10 +83,6 @@ interface AppEnvironmentArgs {
  * sets above these folders, which nothing here can override.
  */
 export class AppEnvironment extends pulumi.ComponentResource {
-  readonly key: AppEnvironmentKey;
-  readonly folder: gcp.organizations.Folder;
-  readonly hostname: AppHostname;
-  readonly access: AppAccess;
   readonly project: gcp.organizations.Project;
   readonly serviceAccount: gcp.serviceaccount.Account;
   readonly environment: service.Environment;
@@ -107,8 +97,6 @@ export class AppEnvironment extends pulumi.ComponentResource {
     const name = appEnvironmentKey(app, environment);
     super('medusa:platform:AppEnvironment', name, {}, options);
 
-    this.key = name;
-
     const parent = { parent: this };
 
     // Created at the top of the stack before this component held them, hence the aliases.
@@ -116,9 +104,9 @@ export class AppEnvironment extends pulumi.ComponentResource {
     const moved = { parent: this, ...movedFromStackRoot };
     const pair = { app, environment, key: name };
 
-    this.folder = appFolder(pair, moved);
-    this.hostname = appHostname(pair, moved);
-    this.access = appAccess(pair, moved);
+    const folder = appFolder(pair, moved);
+    appHostname(pair, moved);
+    const access = appAccess(pair, moved);
 
     const suffix = new random.RandomId(`${name}-project-suffix`, { byteLength: 2 }, parent);
 
@@ -131,7 +119,7 @@ export class AppEnvironment extends pulumi.ComponentResource {
         projectId: suffix.hex.apply(
           (hex) => `ms-${app}-${ENVIRONMENT_SHORT_NAMES[environment]}-${hex}`,
         ),
-        folderId: this.folder.folderId,
+        folderId: folder.folderId,
         billingAccount: billingAccount.id,
 
         // Exploration phase: `destroy` should actually destroy.
@@ -312,7 +300,7 @@ export class AppEnvironment extends pulumi.ComponentResource {
             images.registry.repositoryId,
             this.neonProject.id,
             this.neonKey.key,
-            this.access.application.aud,
+            access.application.aud,
           ])
           .apply(
             ([

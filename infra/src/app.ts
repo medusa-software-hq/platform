@@ -4,7 +4,7 @@ import { appDeployBinding } from './app-deploy.ts';
 import { AppEnvironment } from './app-environment.ts';
 import { appImages, type AppImages } from './app-images.ts';
 import { appRepository } from './app-repository.ts';
-import { byEnvironment, type App, type Environment } from './model.ts';
+import { ENVIRONMENTS, type App } from './model.ts';
 import { movedFromStackRoot } from './moved.ts';
 
 /**
@@ -19,15 +19,11 @@ import { movedFromStackRoot } from './moved.ts';
  * the binding that lets its repository ask for a deployment.
  */
 export class AppComponent extends pulumi.ComponentResource {
-  readonly app: App;
   readonly images: AppImages;
   readonly repository: github.Repository;
-  readonly environments: Readonly<Record<Environment, AppEnvironment>>;
 
   constructor(app: App, options?: pulumi.ComponentResourceOptions) {
     super('medusa:platform:App', app, {}, options);
-
-    this.app = app;
 
     const children = { parent: this, ...movedFromStackRoot };
 
@@ -35,9 +31,9 @@ export class AppComponent extends pulumi.ComponentResource {
     this.repository = appRepository(app, this.images, children);
     appDeployBinding(app, children);
 
-    this.environments = byEnvironment(
-      (environment) => new AppEnvironment({ app, environment, images: this.images }, children),
-    );
+    for (const environment of ENVIRONMENTS) {
+      new AppEnvironment({ app, environment, images: this.images }, children);
+    }
 
     this.registerOutputs({ repository: this.repository.fullName });
   }

@@ -56,19 +56,11 @@ const placeholder = (hostname: string): string =>
 };
 `;
 
-export interface AppHostname {
-  /** Where the environment answers. */
-  readonly hostname: string;
-
-  /** The Worker that answers there, holding a placeholder until the app deploys over it. */
-  readonly script: cloudflare.WorkersScript;
-}
-
 /** An app environment's hostname, and the Worker it reaches. */
 export const appHostname = (
   pair: AppEnvironmentPair,
   options: pulumi.CustomResourceOptions,
-): AppHostname => {
+): void => {
   const hostname = hostnameFor(pair);
 
   const script = new cloudflare.WorkersScript(
@@ -114,6 +106,4 @@ export const appHostname = (
     },
     options,
   );
-
-  return { hostname, script };
 };

@@ -29,30 +29,6 @@ export interface AppEnvironmentPair {
   key: AppEnvironmentKey;
 }
 
-/** Every app in every environment, in a stable order. */
-export const appEnvironments = (): AppEnvironmentPair[] =>
-  APPS.flatMap((app) =>
-    ENVIRONMENTS.map((environment) => ({
-      app,
-      environment,
-      key: appEnvironmentKey(app, environment),
-    })),
-  );
-
-export const byEnvironment = <T>(make: (environment: Environment) => T): Record<Environment, T> =>
-  Object.fromEntries(ENVIRONMENTS.map((environment) => [environment, make(environment)])) as Record<
-    Environment,
-    T
-  >;
-
-export const byAppEnvironment = <T>(
-  make: (pair: AppEnvironmentPair) => T,
-): Record<AppEnvironmentKey, T> =>
-  Object.fromEntries(appEnvironments().map((pair) => [pair.key, make(pair)])) as Record<
-    AppEnvironmentKey,
-    T
-  >;
-
 /**
  * Where an app environment answers. Production is served bare; every other
  * environment is suffixed with its own name.
