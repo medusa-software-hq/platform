@@ -17,7 +17,6 @@ import type { AppImages } from './app-images.ts';
 import { centralProject, centralServices } from './central.ts';
 import { appFolder } from './folders.ts';
 import { appEnvironmentKey, ENVIRONMENT_SHORT_NAMES, type App, type Environment } from './model.ts';
-import { movedFromStackRoot } from './moved.ts';
 import {
   billingAccount,
   githubOrganization,
@@ -99,14 +98,11 @@ export class AppEnvironment extends pulumi.ComponentResource {
 
     const parent = { parent: this };
 
-    // Created at the top of the stack before this component held them, hence the aliases.
-    // Everything else below was already this component's, and moves with it.
-    const moved = { parent: this, ...movedFromStackRoot };
     const pair = { app, environment, key: name };
 
-    const folder = appFolder(pair, moved);
-    appHostname(pair, moved);
-    const access = appAccess(pair, moved);
+    const folder = appFolder(pair, parent);
+    appHostname(pair, parent);
+    const access = appAccess(pair, parent);
 
     const suffix = new random.RandomId(`${name}-project-suffix`, { byteLength: 2 }, parent);
 

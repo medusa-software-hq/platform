@@ -5,7 +5,6 @@ import { AppEnvironment } from './app-environment.ts';
 import { appImages, type AppImages } from './app-images.ts';
 import { appRepository } from './app-repository.ts';
 import { ENVIRONMENTS, type App } from './model.ts';
-import { movedFromStackRoot } from './moved.ts';
 
 /**
  * One app: what it has once, whatever the environment, and each of its environments.
@@ -25,7 +24,7 @@ export class AppComponent extends pulumi.ComponentResource {
   constructor(app: App, options?: pulumi.ComponentResourceOptions) {
     super('medusa:platform:App', app, {}, options);
 
-    const children = { parent: this, ...movedFromStackRoot };
+    const children = { parent: this };
 
     this.images = appImages(app, children);
     this.repository = appRepository(app, this.images, children);
