@@ -1,4 +1,10 @@
-import { APPS, DEPLOY_ORDER, appEnvironmentKey, hostnameFor, type App } from '../../infra/model.ts';
+import {
+  APPS,
+  DEPLOY_ORDER,
+  appEnvironmentKey,
+  hostnameFor,
+  type App,
+} from '../../infra/src/model.ts';
 import { deploy } from './deploy.ts';
 import { requireEnvironment } from './environment.ts';
 import { smokeTest } from './smokeTest.ts';
