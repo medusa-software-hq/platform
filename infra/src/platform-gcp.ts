@@ -46,11 +46,17 @@ export const DEPLOY_OPERATIONS = ['preview', 'update', 'refresh'] as const;
 export const deploySubject = (app: string, stack: string, operation: string): string =>
   `pulumi:deploy:org:${pulumiOrganization}:project:${app}:stack:${stack}:operation:${operation}:scope:write`;
 
-/** This repository, which holds the workflow the Pulumi token is issued to. */
-const PLATFORM_REPOSITORY = 'platform';
-
-/** The one workflow, at the one ref, that may read it. */
-const DEPLOY_WORKFLOW_REF = `${githubOrganization}/${PLATFORM_REPOSITORY}/.github/workflows/deploy.yml@refs/heads/main`;
+/**
+ * Where an app's deploy workflow must live, and the ref it must run from.
+ *
+ * Appended to whichever repository asked, rather than naming one repository — so every app
+ * deploys itself with a file it owns, and the condition still admits nothing but that file.
+ *
+ * The steps have to be in that file itself. `job_workflow_ref` names the workflow that *defines*
+ * the running job, so a job delegating to another workflow of the app's own would assert that
+ * one's path instead and be refused.
+ */
+const DEPLOY_WORKFLOW_PATH = '/.github/workflows/deploy.yml@refs/heads/main';
 
 /** The one branch a caller may run it from. */
 const CALLER_REF = 'refs/heads/main';
@@ -312,17 +318,21 @@ export const provisionPlatformGcpResources = ({
       /**
        * Three claims, because one is not enough.
        *
-       * `job_workflow_ref` names the workflow that defines the running job, which for a
-       * called workflow is the called one — so this pins the file and the ref it is read
-       * from, and a caller cannot substitute its own steps. The other two describe the
-       * caller: `repository_owner` because these repositories are public and anyone at
-       * all may call a public workflow, and `ref` because a deployment should come from
-       * a merge rather than from a branch or a fork.
+       * `job_workflow_ref` is compared against a path built from the repository that asked, so
+       * an app deploys itself with a file it owns at a path this stack fixes, and nothing else
+       * in that repository can reach the credential. The other two describe the caller:
+       * `repository_owner` because these repositories are public and anyone at all may call a
+       * public workflow, and `ref` because a deployment should come from a merge rather than
+       * from a branch or a fork.
+       *
+       * What this deliberately stopped doing is deciding what the steps are. An app that can
+       * read the Pulumi token can do whatever that token permits — which is the trade: the
+       * sequence becomes the app's to shape, and the credential stops being out of its reach.
        */
       attributeCondition: [
         `assertion.repository_owner == '${githubOrganization}'`,
         `assertion.ref == '${CALLER_REF}'`,
-        `assertion.job_workflow_ref == '${DEPLOY_WORKFLOW_REF}'`,
+        `assertion.job_workflow_ref == assertion.repository + '${DEPLOY_WORKFLOW_PATH}'`,
       ].join(' && '),
 
       oidc: { issuerUri: 'https://token.actions.githubusercontent.com' },
