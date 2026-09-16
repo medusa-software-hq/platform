@@ -1,7 +1,7 @@
 import * as cloudflare from '@pulumi/cloudflare';
 import type * as pulumi from '@pulumi/pulumi';
 import { cloudflareAccountId as accountId } from './config.ts';
-import { hostnameFor, type AppEnvironmentPair } from './model.ts';
+import { SYSTEM_TESTED_ENVIRONMENTS, hostnameFor, type AppEnvironmentPair } from './model.ts';
 import { organizationDomain } from './organization.ts';
 import { WEBHOOKS_PATH } from './platform-cloudflare.ts';
 import type { PlatformResources } from './platform.ts';
@@ -83,7 +83,7 @@ export const provisionAppEnvCloudflareResources = (
   options: pulumi.CustomResourceOptions,
 ): AppEnvCloudflareResources => {
   const hostname = hostnameFor(pair);
-  const { identityProvider, organizationMembers, webhookSenders, deploySmokeTest } =
+  const { identityProvider, organizationMembers, webhookSenders, deploySmokeTest, systemTests } =
     platform.cloudflare;
 
   const script = new cloudflare.WorkersScript(
@@ -174,6 +174,11 @@ export const provisionAppEnvCloudflareResources = (
       policies: [
         { id: organizationMembers.id, precedence: 1 },
         { id: deploySmokeTest.id, precedence: 2 },
+
+        // Only where system tests run. Everywhere else those services are simply not let in.
+        ...(SYSTEM_TESTED_ENVIRONMENTS.includes(pair.environment)
+          ? [{ id: systemTests.id, precedence: 3 }]
+          : []),
       ],
     },
     options,

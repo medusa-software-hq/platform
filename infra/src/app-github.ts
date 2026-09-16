@@ -2,7 +2,13 @@ import * as github from '@pulumi/github';
 import type * as pulumi from '@pulumi/pulumi';
 import type { AppGcpResources } from './app-gcp.ts';
 import { pulumiOrganization } from './config.ts';
-import { DEPLOY_ORDER, appEnvironmentKey, hostnameFor, type App } from './model.ts';
+import {
+  DEPLOY_ORDER,
+  SYSTEM_TESTED_ENVIRONMENTS,
+  appEnvironmentKey,
+  hostnameFor,
+  type App,
+} from './model.ts';
 import type { PlatformResources } from './platform.ts';
 
 /** Settings the configure-repo action owns. Listed so the boundary is visible. */
@@ -83,6 +89,11 @@ export const provisionAppGithubResources = (
    * staging because production comes after it.
    */
   variable('DEPLOY_ENVIRONMENTS', DEPLOY_ORDER.join(','));
+
+  // Where its system tests run — the environments that admit the services they call as — and how
+  // to become those services.
+  variable('DEPLOY_SYSTEM_TESTED_ENVIRONMENTS', SYSTEM_TESTED_ENVIRONMENTS.join(','));
+  variable('DEPLOY_SYSTEM_TEST_SECRET', deployIdentity.systemTestSecret);
   variable(
     'DEPLOY_HOSTNAMES',
     JSON.stringify(
