@@ -44,3 +44,13 @@ export const hostnameFor = ({ app, environment }: AppEnvironmentPair): string =>
  * iterating this one may not.
  */
 export const DEPLOY_ORDER: readonly Environment[] = ['staging', 'production'];
+
+/**
+ * The environments an app's system tests run against, and so the only ones that admit the services
+ * those tests call as.
+ *
+ * Staging alone. It exists to be tried before production is touched, so what a test leaves behind
+ * there is left in an environment nobody depends on — and production admits no such caller, so
+ * nothing a test could do reaches what people use.
+ */
+export const SYSTEM_TESTED_ENVIRONMENTS: readonly Environment[] = ['staging'];

@@ -67,6 +67,7 @@ export interface DeployIdentity {
   serviceAccount: pulumi.Output<string>;
   secret: pulumi.Output<string>;
   smokeTestSecret: pulumi.Output<string>;
+  systemTestSecret: pulumi.Output<string>;
 }
 
 export interface PlatformGcpResources {
@@ -439,6 +440,42 @@ export const provisionPlatformGcpResources = ({
     member: deployServiceAccount.member,
   });
 
+  /**
+   * The services system tests call as, kept the same way as the smoke test's token and read by the
+   * same account: an app's deploy workflow runs its system tests between deploying staging and
+   * touching production.
+   *
+   * A list, in the order a test suite takes its callers in.
+   */
+  const systemTestTokensSecret = new gcp.secretmanager.Secret(
+    'access-system-test-tokens',
+    {
+      project: centralProject.projectId,
+      secretId: 'access-system-test-tokens',
+      replication: { auto: {} },
+    },
+    dependsOn,
+  );
+
+  new gcp.secretmanager.SecretVersion('access-system-test-tokens', {
+    secret: systemTestTokensSecret.id,
+    secretData: pulumi.secret(
+      pulumi.jsonStringify(
+        cloudflare.systemTestTokens.map((token) => ({
+          clientId: token.clientId,
+          clientSecret: token.clientSecret,
+        })),
+      ),
+    ),
+  });
+
+  new gcp.secretmanager.SecretIamMember('access-system-test-tokens-accessor', {
+    project: centralProject.projectId,
+    secretId: systemTestTokensSecret.secretId,
+    role: 'roles/secretmanager.secretAccessor',
+    member: deployServiceAccount.member,
+  });
+
   return {
     centralProject,
     centralServices,
@@ -454,6 +491,7 @@ export const provisionPlatformGcpResources = ({
       serviceAccount: deployServiceAccount.email,
       secret: pulumi.interpolate`projects/${centralProject.projectId}/secrets/${deployTokenSecret.secretId}/versions/latest`,
       smokeTestSecret: pulumi.interpolate`projects/${centralProject.projectId}/secrets/${smokeTestTokenSecret.secretId}/versions/latest`,
+      systemTestSecret: pulumi.interpolate`projects/${centralProject.projectId}/secrets/${systemTestTokensSecret.secretId}/versions/latest`,
     },
   };
 };

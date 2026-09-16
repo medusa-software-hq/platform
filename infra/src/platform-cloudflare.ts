@@ -48,6 +48,13 @@ export interface PlatformCloudflareResources {
   /** The token the deploy workflow's smoke test presents, and the policy admitting it. */
   readonly smokeTestToken: cloudflare.ZeroTrustAccessServiceToken;
   readonly deploySmokeTest: cloudflare.ZeroTrustAccessPolicy;
+
+  /** The two services system tests call as, and the policy admitting them where they may. */
+  readonly systemTestTokens: readonly [
+    cloudflare.ZeroTrustAccessServiceToken,
+    cloudflare.ZeroTrustAccessServiceToken,
+  ];
+  readonly systemTests: cloudflare.ZeroTrustAccessPolicy;
 }
 
 /** The sign-in every app shares, and the policies an app's Access applications are built from. */
@@ -106,10 +113,10 @@ export const provisionPlatformCloudflareResources = (): PlatformCloudflareResour
   /**
    * What the deploy workflow presents to see an app it has just deployed.
    *
-   * A person signs in; a workflow cannot, so it carries a token Access admits without asking who
-   * is holding it. That is also the whole of what it gets: it names nobody, so a Worker checking
-   * who signed in refuses it anything but the page and its files — which is exactly what a check
-   * that an app answers needs to see.
+   * A person signs in; a workflow cannot, so it carries a token Access admits as a service rather
+   * than as a person. An app's Worker names such a caller by the token's client id, so it could
+   * call the API as that service — the smoke test only ever asks for the page and its files, which
+   * is what a check that an app answers needs to see.
    *
    * Never expiring, deliberately. It unlocks the one thing about an app nobody would call secret,
    * and a token that lapses is a deploy that fails a year from now for a reason nobody remembers.
@@ -129,11 +136,42 @@ export const provisionPlatformCloudflareResources = (): PlatformCloudflareResour
     includes: [{ serviceToken: { tokenId: smokeTestToken.id } }],
   });
 
+  /**
+   * The services an app's system tests call as.
+   *
+   * Two, because what is personal is only shown to be personal by somebody else not seeing it.
+   * Services rather than people: a test cannot sign in to Google, and a person's account kept for
+   * a robot is a password nobody should hold. Access admits a service token as itself, and an
+   * app's Worker names it by its client id, so to the app it is a caller like any other — nothing
+   * behind the login knows it is a test.
+   *
+   * Shared by every app, like the smoke test's token, and admitted only where
+   * {@link SYSTEM_TESTED_ENVIRONMENTS} says, so none of them reaches production.
+   */
+  const systemTestToken = (which: string): cloudflare.ZeroTrustAccessServiceToken =>
+    new cloudflare.ZeroTrustAccessServiceToken(`system-tests-${which}`, {
+      accountId,
+      name: `System tests (${which})`,
+      duration: 'forever',
+    });
+
+  const systemTestTokens = [systemTestToken('first'), systemTestToken('second')] as const;
+
+  /** The system tests' tokens, admitted as services. */
+  const systemTests = new cloudflare.ZeroTrustAccessPolicy('system-tests', {
+    accountId,
+    name: 'System tests',
+    decision: 'non_identity',
+    includes: systemTestTokens.map((token) => ({ serviceToken: { tokenId: token.id } })),
+  });
+
   return {
     identityProvider,
     organizationMembers,
     webhookSenders,
     smokeTestToken,
     deploySmokeTest,
+    systemTestTokens,
+    systemTests,
   };
 };
