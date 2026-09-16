@@ -2,7 +2,7 @@ import * as github from '@pulumi/github';
 import type * as pulumi from '@pulumi/pulumi';
 import type { AppGcpResources } from './app-gcp.ts';
 import { pulumiOrganization } from './config.ts';
-import type { App } from './model.ts';
+import { DEPLOY_ORDER, appEnvironmentKey, hostnameFor, type App } from './model.ts';
 import type { PlatformResources } from './platform.ts';
 
 /** Settings the configure-repo action owns. Listed so the boundary is visible. */
@@ -72,4 +72,26 @@ export const provisionAppGithubResources = (
   variable('DEPLOY_TOKEN_SECRET', deployIdentity.secret);
   // And how, having deployed, it gets past the sign-in in front of the app to see it answer.
   variable('DEPLOY_SMOKE_TEST_SECRET', deployIdentity.smokeTestSecret);
+
+  /**
+   * What deploying this app means: which environments, in the order they have to happen in, and
+   * where each one answers once it has.
+   *
+   * Both are this stack's facts — it creates the stacks and it creates the hostnames — and they
+   * are handed over rather than left for an app to restate, which would be a second copy free to
+   * drift from the one that decides. The order is a sequence and not a set: staging is only
+   * staging because production comes after it.
+   */
+  variable('DEPLOY_ENVIRONMENTS', DEPLOY_ORDER.join(','));
+  variable(
+    'DEPLOY_HOSTNAMES',
+    JSON.stringify(
+      Object.fromEntries(
+        DEPLOY_ORDER.map((environment) => [
+          environment,
+          hostnameFor({ app, environment, key: appEnvironmentKey(app, environment) }),
+        ]),
+      ),
+    ),
+  );
 };
